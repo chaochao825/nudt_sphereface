@@ -18,7 +18,11 @@ COPY . ./
 COPY sphereface_weights.pth /project/sphereface_weights.pth
 
 # Create necessary directories
-RUN mkdir -p /project/input /project/output /project/cfgs
+RUN mkdir -p /project/input /project/output /project/cfgs /wind_metrics
+
+# Copy wind_metrics scripts
+COPY wind_metrics/ /wind_metrics/
+RUN chmod +x /wind_metrics/wind_metrics.sh
 
 # Run main script
 CMD ["python", "main.py"]
