@@ -1,0 +1,110 @@
+import argparse
+import yaml
+from easydict import EasyDict
+import os
+import glob
+
+from utils.sse import sse_input_path_validated, sse_output_path_validated
+from utils.yaml_rw import load_yaml, save_yaml
+from face_recognizer.main import main as face_main
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--input_path', type=str, default='./input', help='input path')
+    parser.add_argument('--output_path', type=str, default='./output', help='output path')
+    
+    parser.add_argument('--process', type=str, default='attack', help='[adv, attack, defend, train]')
+    parser.add_argument('--model', type=str, default='sphereface', help='model name')
+    parser.add_argument('--data', type=str, default='lfw', help='data name [vggface2, celeba, webface, lfw, yaleb, megaface]')
+    parser.add_argument('--num_classes', type=int, default=1000, help='number of classes')
+    
+    parser.add_argument('--attack_method', type=str, default='bim', help='attack method [bim, dim, tim, pgd, cw, deepfool]')
+    parser.add_argument('--defend_method', type=str, default='hgd', help='defend method [hgd, tvm, livenessdetection, featurespacepurification, ensembledefense]')
+    
+    parser.add_argument('--cfg_path', type=str, default='./cfgs', help='cfg path')
+    
+    parser.add_argument('--epochs', type=int, default=100, help='epochs')
+    parser.add_argument('--batch', type=int, default=8, help='batch size')
+    parser.add_argument('--device', type=int, default=0, help='which gpu for cuda')
+    parser.add_argument('--workers', type=int, default=0, help='dataloader workers')
+    
+    parser.add_argument('--epsilon', type=float, default=8/255, help='epsilon for attack method')
+    parser.add_argument('--step_size', type=float, default=2/255, help='step size for attack method')
+    parser.add_argument('--max_iterations', type=int, default=10, help='max iterations for attack method')
+    
+    args = parser.parse_args()
+    args_dict = vars(args)
+    args_dict_environ = {}
+    for key, value in args_dict.items():
+        args_dict_environ[key] = type_switch(os.getenv(key.upper(), value), value)
+    args_easydict = EasyDict(args_dict_environ)
+    return args_easydict
+
+def type_switch(environ_value, value):
+    if isinstance(value, int):
+        return int(environ_value)
+    elif isinstance(value, float):
+        return float(environ_value)
+    elif isinstance(value, bool):
+        return bool(environ_value)
+    elif isinstance(value, str):
+        return environ_value
+    
+def face_cfg(args):
+    os.makedirs(args.cfg_path, exist_ok=True)
+    
+    cfg = EasyDict()
+    cfg.model = args.model
+    cfg.data = args.data
+    cfg.save_dir = args.output_path
+    cfg.project = args.model
+    cfg.name = args.process
+    cfg.batch = args.batch
+    cfg.workers = args.workers
+    cfg.device = f'cuda:{args.device}' if args.device >= 0 else 'cpu'
+    cfg.num_classes = args.num_classes
+    cfg.verbose = True
+    cfg.half = False
+    
+    if args.process == 'adv':
+        cfg.mode = 'adv'
+        cfg.batch = 1
+        model_files = glob.glob(os.path.join(f'{args.input_path}/model', '*'))
+        cfg.pretrained = model_files[0] if model_files else None
+        data_dirs = glob.glob(os.path.join(f'{args.input_path}/data', '*/'))
+        cfg.data_path = data_dirs[0] if data_dirs else f'{args.input_path}/data'
+    elif args.process == 'attack':
+        cfg.mode = 'attack'
+        cfg.batch = 1
+        model_files = glob.glob(os.path.join(f'{args.input_path}/model', '*'))
+        cfg.pretrained = model_files[0] if model_files else None
+        data_dirs = glob.glob(os.path.join(f'{args.input_path}/data', '*/'))
+        cfg.data_path = data_dirs[0] if data_dirs else f'{args.input_path}/data'
+    elif args.process == 'defend':
+        cfg.mode = 'defend'
+        cfg.batch = 1
+        cfg.device = 'cpu'
+        data_dirs = glob.glob(os.path.join(f'{args.input_path}/data', '*/'))
+        cfg.data_path = data_dirs[0] if data_dirs else f'{args.input_path}/data'
+    elif args.process == 'train':
+        cfg.mode = 'train'
+        cfg.epochs = args.epochs
+        data_dirs = glob.glob(os.path.join(f'{args.input_path}/data', '*/'))
+        cfg.data_path = data_dirs[0] if data_dirs else f'{args.input_path}/data'
+    
+    cfg_dict = dict(cfg)
+    args.cfg_yaml = f'{args.cfg_path}/config.yaml'
+    save_yaml(cfg_dict, args.cfg_yaml)
+    
+    return args, cfg
+
+def main(args):
+    args, cfg = face_cfg(args)
+    face_main(args, cfg)
+        
+if __name__ == '__main__':
+    args = parse_args()
+    
+    sse_input_path_validated(args)
+    sse_output_path_validated(args)
+    main(args)
