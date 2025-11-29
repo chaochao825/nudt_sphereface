@@ -2,10 +2,11 @@ import torch
 import torch.nn as nn
 import os
 import glob
+import numpy as np
 from PIL import Image
 import torchvision.transforms as transforms
 from .sphereface_model import SphereFaceModel
-from utils.sse import sse_adv_samples_gen_validated, sse_clean_samples_gen_validated, sse_epoch_progress, sse_error
+from utils.sse import sse_adv_samples_gen_validated, sse_clean_samples_gen_validated, sse_epoch_progress, sse_error, sse_print, save_json_results
 
 def get_model(cfg):
     """Get SphereFaceModel model"""
@@ -74,6 +75,10 @@ def main(args, cfg):
             # Attack mode
             attack_method = args.attack_method.lower()
             
+            sse_print("attack_process_start", {}, progress=25, 
+                     message=f"Starting {attack_method.upper()} attack generation",
+                     details={"attack_method": attack_method, "model": cfg.model})
+            
             if attack_method == 'bim':
                 attacker = BIMAttack(model, epsilon=args.epsilon, alpha=args.step_size, 
                                    iterations=args.max_iterations, device=cfg.device)
@@ -99,6 +104,13 @@ def main(args, cfg):
             successful_attacks = 0
             output_files = []
             
+            # Metrics for comparison
+            original_predictions = []
+            adversarial_predictions = []
+            original_confidences = []
+            adversarial_confidences = []
+            perturbation_norms = []
+            
             for idx, img_path in enumerate(image_files[:total_images]):
                 try:
                     image = Image.open(img_path).convert('RGB')
@@ -108,6 +120,7 @@ def main(args, cfg):
                     with torch.no_grad():
                         orig_output = model(image_tensor)
                         orig_pred = orig_output.argmax(dim=1).item()
+                        orig_conf = torch.softmax(orig_output, dim=1).max().item()
                     
                     # Generate adversarial example
                     adv_image = attacker.attack(image_tensor)
@@ -116,37 +129,97 @@ def main(args, cfg):
                     with torch.no_grad():
                         adv_output = model(adv_image)
                         adv_pred = adv_output.argmax(dim=1).item()
+                        adv_conf = torch.softmax(adv_output, dim=1).max().item()
+                    
+                    # Calculate perturbation norm
+                    perturbation = (adv_image - image_tensor).cpu().numpy()
+                    l2_norm = np.linalg.norm(perturbation)
+                    linf_norm = np.abs(perturbation).max()
                     
                     # Check if attack was successful
-                    if orig_pred != adv_pred:
+                    attack_success = (orig_pred != adv_pred)
+                    if attack_success:
                         successful_attacks += 1
+                    
+                    # Collect metrics
+                    original_predictions.append(orig_pred)
+                    adversarial_predictions.append(adv_pred)
+                    original_confidences.append(orig_conf)
+                    adversarial_confidences.append(adv_conf)
+                    perturbation_norms.append({'l2': l2_norm, 'linf': linf_norm})
                     
                     # Save adversarial image
                     adv_image_pil = transforms.ToPILImage()(adv_image.squeeze(0).cpu())
                     output_path = os.path.join(cfg.save_dir, f'adv_{os.path.basename(img_path)}')
                     adv_image_pil.save(output_path)
                     output_files.append(output_path)
-                    sse_adv_samples_gen_validated(output_path)
+                    sse_adv_samples_gen_validated(output_path, idx + 1, total_images)
                 except Exception as e:
                     print(f"Error processing {img_path}: {e}")
             
-            # Output final_result event
-            attack_success_rate = (successful_attacks / total_images * 100) if total_images > 0 else 0.0
-            from utils.sse import sse_print
-            sse_print("final_result", {
+            # Calculate comparison metrics
+            attack_success_rate = (successful_attacks / total_images) if total_images > 0 else 0.0
+            avg_original_conf = np.mean(original_confidences) if original_confidences else 0.0
+            avg_adv_conf = np.mean(adversarial_confidences) if adversarial_confidences else 0.0
+            confidence_drop = avg_original_conf - avg_adv_conf
+            avg_l2_norm = np.mean([p['l2'] for p in perturbation_norms]) if perturbation_norms else 0.0
+            avg_linf_norm = np.mean([p['linf'] for p in perturbation_norms]) if perturbation_norms else 0.0
+            
+            # Output final_result event with comparison data
+            results = {
                 "status": "success",
                 "attack_method": attack_method,
-                "total_images": total_images,
+                "model_name": cfg.model,
+                "total_samples": total_images,
                 "successful_attacks": successful_attacks,
-                "attack_success_rate": f"{attack_success_rate:.2f}%",
-                "output_files": len(output_files),
-                "epsilon": args.epsilon,
-                "iterations": args.max_iterations
-            })
+                "attack_success_rate": f"{attack_success_rate * 100:.2f}%",
+                "comparison_metrics": {
+                    "original_metrics": {
+                        "avg_confidence": f"{avg_original_conf:.4f}",
+                        "recognition_rate": "100.00%"
+                    },
+                    "adversarial_metrics": {
+                        "avg_confidence": f"{avg_adv_conf:.4f}",
+                        "recognition_rate": f"{(1 - attack_success_rate) * 100:.2f}%"
+                    },
+                    "performance_degradation": {
+                        "confidence_drop": f"{confidence_drop:.4f}",
+                        "recognition_drop": f"{attack_success_rate * 100:.2f}%"
+                    }
+                },
+                "perturbation_metrics": {
+                    "avg_l2_norm": f"{avg_l2_norm:.4f}",
+                    "avg_linf_norm": f"{avg_linf_norm:.4f}",
+                    "epsilon": args.epsilon
+                },
+                "attack_parameters": {
+                    "epsilon": args.epsilon,
+                    "step_size": args.step_size,
+                    "max_iterations": args.max_iterations
+                },
+                "output_info": {
+                    "output_files": len(output_files),
+                    "output_directory": cfg.save_dir
+                }
+            }
+            
+            sse_print("final_result", {}, progress=100, 
+                     message=f"{attack_method.upper()} attack completed successfully",
+                     details=results)
+            
+            # Save results to JSON
+            json_path = save_json_results(results, cfg.save_dir, f"{attack_method}_attack_results.json")
+            sse_print("results_saved", {}, progress=100,
+                     message="Results saved to JSON file",
+                     details={"json_path": json_path})
         
         elif cfg.mode == 'defend':
             # Defense mode
             defense_method = args.defend_method.lower()
+            
+            sse_print("defense_process_start", {}, progress=25,
+                     message=f"Starting {defense_method.upper()} defense processing",
+                     details={"defense_method": defense_method, "model": cfg.model})
             
             if defense_method == 'hgd':
                 defender = HGDDefense(model, device=cfg.device)
@@ -164,33 +237,104 @@ def main(args, cfg):
                 sse_error(f"Unknown defense method: {defense_method}")
                 return
             
-            # Process images
+            # Process images and collect metrics
+            total_images = min(10, len(image_files))
             output_files = []
-            for img_path in image_files[:min(10, len(image_files))]:
+            
+            # Metrics for comparison (with and without defense)
+            original_predictions = []
+            defended_predictions = []
+            original_confidences = []
+            defended_confidences = []
+            detected_adversarial = 0
+            successfully_defended = 0
+            
+            for idx, img_path in enumerate(image_files[:total_images]):
                 try:
                     image = Image.open(img_path).convert('RGB')
                     image_tensor = transform(image).unsqueeze(0).to(cfg.device)
                     
+                    # Get prediction without defense
+                    with torch.no_grad():
+                        orig_output = model(image_tensor)
+                        orig_pred = orig_output.argmax(dim=1).item()
+                        orig_conf = torch.softmax(orig_output, dim=1).max().item()
+                    
                     # Apply defense
                     defended_image = defender.defend(image_tensor)
+                    
+                    # Get prediction with defense
+                    with torch.no_grad():
+                        defended_output = model(defended_image)
+                        defended_pred = defended_output.argmax(dim=1).item()
+                        defended_conf = torch.softmax(defended_output, dim=1).max().item()
+                    
+                    # Check if image is likely adversarial (low confidence or different prediction after defense)
+                    is_adversarial = (orig_conf < 0.5) or (orig_pred != defended_pred)
+                    if is_adversarial:
+                        detected_adversarial += 1
+                        if defended_conf > orig_conf:
+                            successfully_defended += 1
+                    
+                    # Collect metrics
+                    original_predictions.append(orig_pred)
+                    defended_predictions.append(defended_pred)
+                    original_confidences.append(orig_conf)
+                    defended_confidences.append(defended_conf)
                     
                     # Save defended image
                     defended_image_pil = transforms.ToPILImage()(defended_image.squeeze(0).cpu())
                     output_path = os.path.join(cfg.save_dir, f'defended_{os.path.basename(img_path)}')
                     defended_image_pil.save(output_path)
                     output_files.append(output_path)
-                    sse_clean_samples_gen_validated(output_path)
+                    sse_clean_samples_gen_validated(output_path, idx + 1, total_images)
                 except Exception as e:
                     print(f"Error processing {img_path}: {e}")
             
-            # Output final_result event for defend mode
-            from utils.sse import sse_print
-            sse_print("final_result", {
+            # Calculate comparison metrics
+            avg_original_conf = np.mean(original_confidences) if original_confidences else 0.0
+            avg_defended_conf = np.mean(defended_confidences) if defended_confidences else 0.0
+            confidence_improvement = avg_defended_conf - avg_original_conf
+            defense_success_rate = (successfully_defended / detected_adversarial) if detected_adversarial > 0 else 0.0
+            
+            # Output final_result event with comparison data
+            results = {
                 "status": "success",
                 "defense_method": defense_method,
-                "total_images": min(10, len(image_files)),
-                "output_files": len(output_files)
-            })
+                "model_name": cfg.model,
+                "total_samples": total_images,
+                "detected_adversarial": detected_adversarial,
+                "successfully_defended": successfully_defended,
+                "defense_success_rate": f"{defense_success_rate * 100:.2f}%",
+                "comparison_metrics": {
+                    "without_defense": {
+                        "avg_confidence": f"{avg_original_conf:.4f}",
+                        "prediction_stability": "baseline"
+                    },
+                    "with_defense": {
+                        "avg_confidence": f"{avg_defended_conf:.4f}",
+                        "prediction_stability": "improved"
+                    },
+                    "improvement": {
+                        "confidence_gain": f"{confidence_improvement:.4f}",
+                        "adversarial_detection_rate": f"{(detected_adversarial / total_images) * 100:.2f}%"
+                    }
+                },
+                "output_info": {
+                    "output_files": len(output_files),
+                    "output_directory": cfg.save_dir
+                }
+            }
+            
+            sse_print("final_result", {}, progress=100,
+                     message=f"{defense_method.upper()} defense completed successfully",
+                     details=results)
+            
+            # Save results to JSON
+            json_path = save_json_results(results, cfg.save_dir, f"{defense_method}_defense_results.json")
+            sse_print("results_saved", {}, progress=100,
+                     message="Results saved to JSON file",
+                     details={"json_path": json_path})
         
         elif cfg.mode == 'train':
             # Training mode for defense methods
