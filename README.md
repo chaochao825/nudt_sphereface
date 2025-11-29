@@ -200,12 +200,6 @@ See `ENV_VARIABLES.md` for complete documentation of all supported environment v
 - EasyDict 1.9
 - SciPy 1.10.1
 
-## Docker Requirements
-
-- Docker 20.10+
-- NVIDIA Docker Runtime (for GPU support)
-- NVIDIA Driver 525.60.13+ (for CUDA 12.1)
-
 ## Examples
 
 ### Example 1: PGD Attack on LFW Dataset
