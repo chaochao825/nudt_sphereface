@@ -9,15 +9,15 @@ from datetime import datetime
 def sse_print(event: str, data: dict, progress: int = None, message: str = None, log: str = None, 
               callback_params: dict = None, details: dict = None) -> str:
     """
-    SSE print with standardized format
+    SSE print with standardized format matching face_json specification
     
     Args:
         event: Event name
         data: Legacy data dict (for backward compatibility)
-        progress: Progress percentage (0-100)
-        message: Human-readable message
+        progress: Progress percentage (1-100)
+        message: Human-readable message (preferably in Chinese)
         log: Log message with progress indicator
-        callback_params: Callback parameters dict
+        callback_params: Callback parameters dict (task_run_id, method_type, etc.)
         details: Additional details dict
     """
     # Build standard SSE response format
@@ -30,7 +30,7 @@ def sse_print(event: str, data: dict, progress: int = None, message: str = None,
         }
     }
     
-    # Add callback_params if provided
+    # Add callback_params if provided (important for face_json format)
     if callback_params:
         response["data"]["callback_params"] = callback_params
     
@@ -53,7 +53,7 @@ def sse_print(event: str, data: dict, progress: int = None, message: str = None,
     if details:
         response["data"]["details"] = details
     elif data and event not in ["input_path_validated", "output_path_validated", 
-                                   "input_data_validated", "input_model_validated"]:
+                                  "input_data_validated", "input_model_validated"]:
         # For backward compatibility, use data as details
         response["data"]["details"] = data
     else:
@@ -70,20 +70,20 @@ def sse_input_path_validated(args):
         if os.path.exists(args.input_path):
             sse_print("input_path_validated", {
                 "status": "success",
-                "message": "Input path is valid and complete.",
+                "message": "输入路径验证成功",
                 "file_name": args.input_path
-            }, progress=5, message="Input path validated")
+            }, progress=5, message="输入路径验证成功")
             
             try:
                 if os.path.exists(f'{args.input_path}/data'):
                     data_files = glob.glob(os.path.join(f'{args.input_path}/data', '*/'))
                     sse_print("input_data_validated", {
                         "status": "success",
-                        "message": "Input data file is valid and complete.",
+                        "message": "输入数据文件验证成功",
                         "file_name": data_files[0] if data_files else f'{args.input_path}/data'
-                    }, progress=10, message="Input data validated")
+                    }, progress=10, message="输入数据验证成功")
                 else:
-                    raise ValueError('Input data file not found.')
+                    raise ValueError('输入数据文件未找到')
             except Exception as e:
                 sse_print("input_data_validated", {"status": "failure", "message": f"{e}"})
                 
@@ -92,15 +92,15 @@ def sse_input_path_validated(args):
                     model_files = glob.glob(os.path.join(f'{args.input_path}/model', '*'))
                     sse_print("input_model_validated", {
                         "status": "success",
-                        "message": "Input model file is valid and complete.",
+                        "message": "输入模型文件验证成功",
                         "file_name": model_files[0] if model_files else f'{args.input_path}/model'
-                    }, progress=15, message="Input model validated")
+                    }, progress=15, message="输入模型验证成功")
                 else:
-                    raise ValueError('Input model file not found.')
+                    raise ValueError('输入模型文件未找到')
             except Exception as e:
                 sse_print("input_model_validated", {"status": "failure", "message": f"{e}"})
         else:
-            raise ValueError('Input path not found.')
+            raise ValueError('输入路径未找到')
     except Exception as e:
         sse_print("input_path_validated", {"status": "failure", "message": f"{e}"})
 
@@ -109,11 +109,11 @@ def sse_output_path_validated(args):
         if os.path.exists(args.output_path):
             sse_print("output_path_validated", {
                 "status": "success",
-                "message": "Output path is valid and complete.",
+                "message": "输出路径验证成功",
                 "file_name": args.output_path
-            }, progress=20, message="Output path validated")
+            }, progress=20, message="输出路径验证成功")
         else:
-            raise ValueError('Output path not found.')
+            raise ValueError('输出路径未找到')
     except Exception as e:
         sse_print("output_path_validated", {"status": "failure", "message": f"{e}"})
 
@@ -121,21 +121,21 @@ def sse_adv_samples_gen_validated(adv_image_name, current, total):
     progress_pct = int(25 + (current / total) * 60)  # 25-85% range for sample generation
     sse_print("adv_samples_gen_validated", {
         "status": "success",
-        "message": f"Adversarial sample generated: {os.path.basename(adv_image_name)}",
+        "message": f"对抗样本已生成: {os.path.basename(adv_image_name)}",
         "file_name": adv_image_name,
         "current": current,
         "total": total
-    }, progress=progress_pct, message=f"Generating adversarial samples ({current}/{total})")
+    }, progress=progress_pct, message=f"生成对抗样本 ({current}/{total})")
 
 def sse_clean_samples_gen_validated(clean_image_name, current, total):
     progress_pct = int(25 + (current / total) * 60)  # 25-85% range for sample generation
     sse_print("clean_samples_gen_validated", {
         "status": "success",
-        "message": f"Defended sample generated: {os.path.basename(clean_image_name)}",
+        "message": f"防御样本已生成: {os.path.basename(clean_image_name)}",
         "file_name": clean_image_name,
         "current": current,
         "total": total
-    }, progress=progress_pct, message=f"Processing defended samples ({current}/{total})")
+    }, progress=progress_pct, message=f"处理防御样本 ({current}/{total})")
 
 def sse_epoch_progress(progress, total, epoch_type="Epoch"):
     progress_pct = int((progress / total) * 100)

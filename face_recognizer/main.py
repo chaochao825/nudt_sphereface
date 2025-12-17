@@ -3,10 +3,70 @@ import torch.nn as nn
 import os
 import glob
 import numpy as np
+import zipfile
+from pathlib import Path
 from PIL import Image
 import torchvision.transforms as transforms
 from .sphereface_model import SphereFaceModel
 from utils.sse import sse_adv_samples_gen_validated, sse_clean_samples_gen_validated, sse_epoch_progress, sse_error, sse_print, save_json_results
+
+
+def load_dataset_with_fallback(data_path, model_name, max_extract=50):
+    """Smart dataset loader with ZIP support and fallback to test data"""
+    from pathlib import Path
+    import zipfile
+    data_path = Path(data_path)
+    sse_print("dataset_check", {}, progress=22, message="检查数据集可用性", log=f"[22%] 检查数据集路径: {data_path}\n")
+    zip_files = list(data_path.glob('*.zip')) + list(data_path.glob('*/*.zip'))
+    if zip_files:
+        zip_file = zip_files[0]
+        sse_print("compressed_found", {}, progress=22, message=f"发现压缩数据集: {zip_file.name}", log=f"[22%] 检测到压缩文件: {zip_file.name}\n")
+        extract_dir = data_path / '.extracted' / zip_file.stem
+        extract_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            existing = list(extract_dir.rglob('*.jpg')) + list(extract_dir.rglob('*.png')) + list(extract_dir.rglob('*.pgm'))
+            if len(existing) >= 10:
+                sse_print("using_cached", {}, progress=23, message=f"使用缓存数据: {len(existing)}张图片", log=f"[23%] 发现{len(existing)}张缓存图片\n")
+                return str(extract_dir), False
+            with zipfile.ZipFile(zip_file, 'r') as zf:
+                members = [m for m in zf.namelist() if any(m.lower().endswith(e) for e in ['.jpg', '.jpeg', '.png', '.pgm'])]
+                if members:
+                    extract_count = min(max_extract, len(members))
+                    sse_print("extracting", {}, progress=23, message=f"正在提取{extract_count}张样本图片...", log=f"[23%] 从压缩包提取{extract_count}张图片\n")
+                    for member in members[:extract_count]:
+                        try: zf.extract(member, extract_dir)
+                        except: pass
+                    extracted = list(extract_dir.rglob('*.jpg')) + list(extract_dir.rglob('*.png')) + list(extract_dir.rglob('*.pgm'))
+                    if len(extracted) > 0:
+                        sse_print("extraction_success", {}, progress=24, message=f"成功提取{len(extracted)}张图片", log=f"[24%] 提取完成，共{len(extracted)}张图片\n")
+                        return str(extract_dir), False
+        except Exception as e:
+            sse_print("extraction_failed", {}, progress=23, message=f"提取失败，使用备用数据", log=f"[23%] 提取错误: {str(e)[:100]}\n")
+    existing = []
+    for ext in ['*.jpg', '*.jpeg', '*.png', '*.pgm']:
+        existing.extend(list(data_path.rglob(ext)))
+    existing = [f for f in existing if '__MACOSX' not in str(f)]
+    if len(existing) > 0:
+        sse_print("using_existing", {}, progress=24, message=f"使用现有数据集: {len(existing)}张图片", log=f"[24%] 发现{len(existing)}张现有图片\n")
+        return str(data_path), False
+    sse_print("using_fallback", {}, progress=24, message="使用测试数据（真实数据集不可用）", log=f"[24%] 回退到项目测试数据\n")
+    project_root = Path(__file__).parent.parent
+    fallback_path = project_root / 'test_data'
+    if not fallback_path.exists() or len(list(fallback_path.rglob('*.jpg'))) == 0:
+        fallback_path.mkdir(parents=True, exist_ok=True)
+        _create_test_images(fallback_path)
+    return str(fallback_path), True
+
+def _create_test_images(path, count=10):
+    """Create minimal test images"""
+    try:
+        import numpy as np
+        for i in range(count):
+            img_array = np.random.randint(0, 255, (112, 112, 3), dtype=np.uint8)
+            Image.fromarray(img_array).save(path / f'test_{i:03d}.jpg')
+        sse_print("created_test_data", {}, progress=24, message=f"已创建{count}张测试图片", log=f"[24%] 生成{count}张测试图片\n")
+    except Exception as e:
+        pass
 
 def get_model(cfg):
     """Get SphereFaceModel model"""
