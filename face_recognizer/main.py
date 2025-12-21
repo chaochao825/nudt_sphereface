@@ -11,110 +11,88 @@ import torchvision.transforms as transforms
 from .sphereface_model import SpherefaceModel
 from utils.sse import sse_adv_samples_gen_validated, sse_clean_samples_gen_validated, sse_epoch_progress, sse_error, sse_print, save_json_results
 
+
+def detect_dataset_type(data_path):
+    """Detect face dataset type"""
+    from pathlib import Path
+    data_path = Path(data_path)
+    if any('lfw' in str(p).lower() for p in data_path.glob('*')) or list(data_path.glob('*lfw*.zip')):
+        return "LFW"
+    if list(data_path.glob('*yale*.zip')) or list(data_path.glob('*耶鲁*.zip')):
+        return "YaleB"
+    if list(data_path.glob('*celeba*.zip')) or (data_path / 'Img').exists():
+        return "CelebA"
+    if 'vggface' in str(data_path).lower() or (data_path / 'meta').exists():
+        return "VGGFace2"
+    if 'casia' in str(data_path).lower() or 'webface' in str(data_path).lower():
+        return "CASIA-WebFace"
+    if 'megaface' in str(data_path).lower():
+        return "MegaFace"
+    return "Generic"
+
 def load_dataset_with_fallback(data_path, model_name, max_extract=50):
-    """
-    Smart dataset loader with ZIP support and fallback to test data
-    Returns: (actual_data_path, using_fallback)
-    """
+    """Smart dataset loader with multi-dataset support"""
+    from pathlib import Path
+    import zipfile
     data_path = Path(data_path)
     
-    sse_print("dataset_check", {}, progress=22,
-             message="Checking dataset availability",
-             log=f"[22%] Checking dataset at {data_path}\n")
+    # Detect dataset type
+    dataset_type = detect_dataset_type(data_path)
+    sse_print("dataset_check", {}, progress=21, message=f"检测到{dataset_type}数据集", log=f"[21%] 数据集类型: {dataset_type}\n")
     
-    # Check for compressed files (ZIP)
+    # Handle ZIP files
     zip_files = list(data_path.glob('*.zip')) + list(data_path.glob('*/*.zip'))
-    
-    if zip_files and len(zip_files) > 0:
+    if zip_files:
         zip_file = zip_files[0]
-        sse_print("compressed_found", {}, progress=22,
-                 message=f"Found compressed dataset: {zip_file.name}",
-                 log=f"[22%] Detected compressed file: {zip_file.name}\n")
-        
-        # Try to extract limited images
+        sse_print("compressed_found", {}, progress=22, message=f"发现压缩数据集: {zip_file.name}", log=f"[22%] 检测到压缩文件\n")
         extract_dir = data_path / '.extracted' / zip_file.stem
         extract_dir.mkdir(parents=True, exist_ok=True)
-        
         try:
-            # Check if already extracted
-            existing_images = list(extract_dir.rglob('*.jpg')) + list(extract_dir.rglob('*.png')) + list(extract_dir.rglob('*.pgm'))
-            if len(existing_images) >= 10:
-                sse_print("using_cached", {}, progress=23,
-                         message=f"Using cached extraction: {len(existing_images)} images",
-                         log=f"[23%] Found {len(existing_images)} images in cache\n")
+            existing = list(extract_dir.rglob('*.jpg')) + list(extract_dir.rglob('*.png')) + list(extract_dir.rglob('*.pgm'))
+            if len(existing) >= 10:
+                sse_print("using_cached", {}, progress=23, message=f"使用缓存: {len(existing)}张", log=f"[23%] 缓存{len(existing)}张\n")
                 return str(extract_dir), False
-            
-            # Extract limited number of images
+            sse_print("extracting", {}, progress=23, message=f"提取{max_extract}张样本...", log=f"[23%] 提取中\n")
             with zipfile.ZipFile(zip_file, 'r') as zf:
-                image_members = [m for m in zf.namelist() 
-                               if any(m.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.pgm'])]
-                
-                if len(image_members) > 0:
-                    # Extract only a sample for performance
-                    extract_count = min(max_extract, len(image_members))
-                    sse_print("extracting", {}, progress=23,
-                             message=f"Extracting {extract_count} sample images...",
-                             log=f"[23%] Extracting {extract_count} images from archive\n")
-                    
-                    for i, member in enumerate(image_members[:extract_count]):
-                        try:
-                            zf.extract(member, extract_dir)
-                        except:
-                            pass
-                    
-                    extracted_images = list(extract_dir.rglob('*.jpg')) + list(extract_dir.rglob('*.png')) + list(extract_dir.rglob('*.pgm'))
-                    if len(extracted_images) > 0:
-                        sse_print("extraction_success", {}, progress=24,
-                                 message=f"Extracted {len(extracted_images)} images successfully",
-                                 log=f"[24%] Successfully extracted {len(extracted_images)} images\n")
-                        return str(extract_dir), False
+                members = [m for m in zf.namelist() if any(m.lower().endswith(e) for e in ['.jpg', '.jpeg', '.png', '.pgm'])]
+                for m in members[:max_extract]:
+                    try: zf.extract(m, extract_dir)
+                    except: pass
+            extracted = list(extract_dir.rglob('*.jpg')) + list(extract_dir.rglob('*.png')) + list(extract_dir.rglob('*.pgm'))
+            if extracted:
+                sse_print("extraction_success", {}, progress=24, message=f"提取成功: {len(extracted)}张", log=f"[24%] 提取完成\n")
+                return str(extract_dir), False
         except Exception as e:
-            sse_print("extraction_failed", {}, progress=23,
-                     message=f"Extraction failed, using fallback data",
-                     log=f"[23%] Extraction error: {str(e)[:100]}\n")
+            sse_print("extraction_failed", {}, progress=23, message="提取失败，使用备用数据", log=f"[23%] 错误\n")
     
-    # Check for existing images in data_path
-    existing_images = []
+    # Check for existing images
+    existing = []
     for ext in ['*.jpg', '*.jpeg', '*.png', '*.pgm']:
-        existing_images.extend(list(data_path.rglob(ext)))
-    
-    existing_images = [f for f in existing_images if '__MACOSX' not in str(f)]
-    
-    if len(existing_images) > 0:
-        sse_print("using_existing", {}, progress=24,
-                 message=f"Using existing dataset: {len(existing_images)} images",
-                 log=f"[24%] Found {len(existing_images)} existing images\n")
+        existing.extend(list(data_path.rglob(ext)))
+    existing = [f for f in existing if '__MACOSX' not in str(f)]
+    if existing:
+        sse_print("using_existing", {}, progress=24, message=f"使用现有数据: {len(existing)}张", log=f"[24%] 现有{len(existing)}张\n")
         return str(data_path), False
     
-    # Fallback to test data
-    sse_print("using_fallback", {}, progress=24,
-             message="Using test data (real dataset unavailable)",
-             log=f"[24%] Falling back to project test data\n")
-    
-    # Get project root (go up from face_recognizer/)
+    # Fallback
+    sse_print("using_fallback", {}, progress=24, message="使用测试数据", log="[24%] 回退\n")
     project_root = Path(__file__).parent.parent
-    fallback_path = project_root / 'test_data'
-    
-    if not fallback_path.exists() or len(list(fallback_path.rglob('*.jpg'))) == 0:
-        # Create minimal test data
-        fallback_path.mkdir(parents=True, exist_ok=True)
-        _create_test_images(fallback_path)
-    
-    return str(fallback_path), True
+    fallback = project_root / 'test_data'
+    if not fallback.exists() or not list(fallback.rglob('*.jpg')):
+        fallback.mkdir(parents=True, exist_ok=True)
+        _create_test_images(fallback)
+    return str(fallback), True
 
 def _create_test_images(path, count=10):
-    """Create minimal test images"""
+    """Create test images"""
     try:
         import numpy as np
+        from PIL import Image
         for i in range(count):
-            img_array = np.random.randint(0, 255, (112, 112, 3), dtype=np.uint8)
-            img = Image.fromarray(img_array)
-            img.save(path / f'test_{i:03d}.jpg')
-        sse_print("created_test_data", {}, progress=24,
-                 message=f"Created {count} test images",
-                 log=f"[24%] Generated {count} test images\n")
-    except Exception as e:
-        pass
+            Image.fromarray(np.random.randint(0,255,(112,112,3),dtype=np.uint8)).save(path/f'test_{i:03d}.jpg')
+        sse_print("created_test_data", {}, progress=24, message=f"创建{count}张测试图片", log=f"[24%] 生成\n")
+    except: pass
+
 
 def get_model(cfg):
     """Get SpherefaceModel model"""
