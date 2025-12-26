@@ -13,10 +13,12 @@ def parse_args():
     parser.add_argument('--input_path', type=str, default='./input', help='input path')
     parser.add_argument('--output_path', type=str, default='./output', help='output path')
     
-    parser.add_argument('--process', type=str, default='attack', help='[adv, attack, defend, train]')
-    parser.add_argument('--model', type=str, default='sphereface', help='model name')
+    parser.add_argument('--process', type=str, default='attack', help='[adv, attack, defend, train, inference_1_1, inference_1_n, attack_defense_eval, dataset_sampling]')
+    parser.add_argument('--model', type=str, default='deepface', help='model name')
     parser.add_argument('--data', type=str, default='lfw', help='data name [vggface2, celeba, webface, lfw, yaleb, megaface]')
     parser.add_argument('--num_classes', type=int, default=1000, help='number of classes')
+    parser.add_argument('--sample_count', type=int, default=100, help='number of images to sample')
+    parser.add_argument('--threshold', type=float, default=0.55, help='confidence threshold for verification')
     
     parser.add_argument('--attack_method', type=str, default='bim', help='attack method [bim, dim, tim, pgd, cw, deepfool]')
     parser.add_argument('--defend_method', type=str, default='hgd', help='defend method [hgd, tvm, livenessdetection, featurespacepurification, ensembledefense]')
@@ -66,31 +68,31 @@ def face_cfg(args):
     cfg.verbose = True
     cfg.half = False
     
-    if args.process == 'adv':
-        cfg.mode = 'adv'
+    # Standardize data and model paths
+    # We use args.input_path/data as the default data search path
+    cfg.data_path = os.path.join(args.input_path, 'data')
+    
+    if args.process in ['adv', 'attack']:
+        cfg.mode = args.process
         cfg.batch = 1
-        model_files = glob.glob(os.path.join(f'{args.input_path}/model', '*'))
+        model_files = glob.glob(os.path.join(args.input_path, 'model', '*'))
         cfg.pretrained = model_files[0] if model_files else None
-        data_dirs = glob.glob(os.path.join(f'{args.input_path}/data', '*/'))
-        cfg.data_path = data_dirs[0] if data_dirs else f'{args.input_path}/data'
-    elif args.process == 'attack':
-        cfg.mode = 'attack'
-        cfg.batch = 1
-        model_files = glob.glob(os.path.join(f'{args.input_path}/model', '*'))
-        cfg.pretrained = model_files[0] if model_files else None
-        data_dirs = glob.glob(os.path.join(f'{args.input_path}/data', '*/'))
-        cfg.data_path = data_dirs[0] if data_dirs else f'{args.input_path}/data'
     elif args.process == 'defend':
         cfg.mode = 'defend'
         cfg.batch = 1
         cfg.device = 'cpu'
-        data_dirs = glob.glob(os.path.join(f'{args.input_path}/data', '*/'))
-        cfg.data_path = data_dirs[0] if data_dirs else f'{args.input_path}/data'
     elif args.process == 'train':
         cfg.mode = 'train'
         cfg.epochs = args.epochs
-        data_dirs = glob.glob(os.path.join(f'{args.input_path}/data', '*/'))
-        cfg.data_path = data_dirs[0] if data_dirs else f'{args.input_path}/data'
+    elif args.process == 'inference_1_1':
+        cfg.mode = 'inference_1_1'
+    elif args.process == 'inference_1_n':
+        cfg.mode = 'inference_1_n'
+    elif args.process == 'attack_defense_eval':
+        cfg.mode = 'attack_defense_eval'
+    elif args.process == 'dataset_sampling':
+        cfg.mode = 'dataset_sampling'
+        cfg.sample_count = args.sample_count
     
     cfg_dict = dict(cfg)
     args.cfg_yaml = f'{args.cfg_path}/config.yaml'

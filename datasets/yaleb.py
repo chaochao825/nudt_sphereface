@@ -14,7 +14,7 @@ class YaleBDataset(FaceDataset):
         data_dir = os.path.join(self.root_dir, 'yaleb', 'CroppedYale')
         
         if not os.path.exists(data_dir):
-            print(f"Warning: YaleB data directory not found: {data_dir}")
+            # print(f"Warning: YaleB data directory not found: {data_dir}")
             return
         
         # Get all person directories

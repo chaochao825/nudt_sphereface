@@ -14,7 +14,7 @@ class VGGFace2Dataset(FaceDataset):
         data_dir = os.path.join(self.root_dir, 'vggface2', self.mode)
         
         if not os.path.exists(data_dir):
-            print(f"Warning: VGGFace2 data directory not found: {data_dir}")
+            # print(f"Warning: VGGFace2 data directory not found: {data_dir}")
             return
         
         # Get all subdirectories (each is a person)

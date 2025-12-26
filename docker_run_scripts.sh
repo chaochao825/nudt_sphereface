@@ -1,190 +1,245 @@
 #!/bin/bash
 
-# Docker run scripts for SPHEREFACE face recognition testing
+# Docker run scripts for face recognition testing
 # These scripts demonstrate how to run the container with different configurations
 
-IMAGE_NAME="nudt_sphereface:latest"
+PROJECT_NAME=$(basename $(pwd) | sed 's/nudt_//')
+IMAGE_NAME="nudt_${PROJECT_NAME}:latest"
 INPUT_PATH="/path/to/input"
 OUTPUT_PATH="/path/to/output"
 
 echo "========================================"
-echo "SPHEREFACE Docker Run Scripts"
+echo "${PROJECT_NAME^^} Docker Run Scripts"
 echo "========================================"
 
-# 1. Adversarial Sample Generation with BIM
+# 1. Dataset Sampling
 echo ""
-echo "1. BIM Attack (ADV)"
+echo "1. Dataset Sampling"
 echo "----------------------------------------"
-cat << 'EOFSCRIPT'
+cat << EOFSCRIPT
+docker run --rm \
+  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${OUTPUT_PATH}:/project/output:rw \
+  -e PROCESS=dataset_sampling \
+  -e SAMPLE_COUNT=100 \
+  \${IMAGE_NAME}
+EOFSCRIPT
+
+# 2. Model Training
+echo ""
+echo "2. Model Training"
+echo "----------------------------------------"
+cat << EOFSCRIPT
 docker run --rm --gpus all \
-  -v ${INPUT_PATH}:/project/input:ro \
-  -v ${OUTPUT_PATH}:/project/output:rw \
+  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${OUTPUT_PATH}:/project/output:rw \
+  -e PROCESS=train \
+  -e MODEL=\${PROJECT_NAME} \
+  -e EPOCHS=30 \
+  \${IMAGE_NAME}
+EOFSCRIPT
+
+# 3. 人脸验证 (1:1)
+echo ""
+echo "3. 人脸验证 (1:1)"
+echo "----------------------------------------"
+cat << EOFSCRIPT
+docker run --rm --gpus all \
+  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${OUTPUT_PATH}:/project/output:rw \
+  -e PROCESS=inference_1_1 \
+  -e MODEL=\${PROJECT_NAME} \
+  -e THRESHOLD=0.55 \
+  \${IMAGE_NAME}
+EOFSCRIPT
+
+# 4. 人脸识别验证 (1:N)
+echo ""
+echo "4. 人脸识别验证 (1:N)"
+echo "----------------------------------------"
+cat << EOFSCRIPT
+docker run --rm --gpus all \
+  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${OUTPUT_PATH}:/project/output:rw \
+  -e PROCESS=inference_1_n \
+  -e MODEL=\${PROJECT_NAME} \
+  \${IMAGE_NAME}
+EOFSCRIPT
+
+# 5. Attack and Defense Evaluation (BIM + HGD)
+echo ""
+echo "5. Attack and Defense Evaluation"
+echo "----------------------------------------"
+cat << EOFSCRIPT
+docker run --rm --gpus all \
+  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${OUTPUT_PATH}:/project/output:rw \
+  -e PROCESS=attack_defense_eval \
+  -e MODEL=\${PROJECT_NAME} \
+  -e ATTACK_METHOD=bim \
+  -e DEFEND_METHOD=hgd \
+  -e EPSILON=0.031 \
+  \${IMAGE_NAME}
+EOFSCRIPT
+
+# 6. BIM Attack (ADV)
+echo ""
+echo "6. BIM Attack (ADV)"
+echo "----------------------------------------"
+cat << EOFSCRIPT
+docker run --rm --gpus all \
+  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${OUTPUT_PATH}:/project/output:rw \
   -e PROCESS=adv \
-  -e MODEL=sphereface \
-  -e DATA=lfw \
-  -e NUM_CLASSES=1000 \
+  -e MODEL=\${PROJECT_NAME} \
   -e ATTACK_METHOD=bim \
   -e EPSILON=0.031 \
-  -e STEP_SIZE=0.008 \
-  -e MAX_ITERATIONS=10 \
-  -e DEVICE=0 \
-  ${IMAGE_NAME}
+  \${IMAGE_NAME}
 EOFSCRIPT
 
-# 2. DIM Attack
+# 7. DIM Attack
 echo ""
-echo "2. DIM Attack"
+echo "7. DIM Attack"
 echo "----------------------------------------"
-cat << 'EOFSCRIPT'
+cat << EOFSCRIPT
 docker run --rm --gpus all \
-  -v ${INPUT_PATH}:/project/input:ro \
-  -v ${OUTPUT_PATH}:/project/output:rw \
+  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${OUTPUT_PATH}:/project/output:rw \
   -e PROCESS=adv \
-  -e MODEL=sphereface \
+  -e MODEL=\${PROJECT_NAME} \
   -e ATTACK_METHOD=dim \
   -e EPSILON=0.031 \
-  -e STEP_SIZE=0.008 \
-  -e MAX_ITERATIONS=10 \
-  -e DEVICE=0 \
-  ${IMAGE_NAME}
+  \${IMAGE_NAME}
 EOFSCRIPT
 
-# 3. TIM Attack
+# 8. TIM Attack
 echo ""
-echo "3. TIM Attack"
+echo "8. TIM Attack"
 echo "----------------------------------------"
-cat << 'EOFSCRIPT'
+cat << EOFSCRIPT
 docker run --rm --gpus all \
-  -v ${INPUT_PATH}:/project/input:ro \
-  -v ${OUTPUT_PATH}:/project/output:rw \
+  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${OUTPUT_PATH}:/project/output:rw \
   -e PROCESS=adv \
-  -e MODEL=sphereface \
+  -e MODEL=\${PROJECT_NAME} \
   -e ATTACK_METHOD=tim \
   -e EPSILON=0.031 \
-  -e STEP_SIZE=0.008 \
-  -e MAX_ITERATIONS=10 \
-  -e DEVICE=0 \
-  ${IMAGE_NAME}
+  \${IMAGE_NAME}
 EOFSCRIPT
 
-# 4. PGD Attack
+# 9. PGD Attack
 echo ""
-echo "4. PGD Attack"
+echo "9. PGD Attack"
 echo "----------------------------------------"
-cat << 'EOFSCRIPT'
+cat << EOFSCRIPT
 docker run --rm --gpus all \
-  -v ${INPUT_PATH}:/project/input:ro \
-  -v ${OUTPUT_PATH}:/project/output:rw \
+  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${OUTPUT_PATH}:/project/output:rw \
   -e PROCESS=adv \
-  -e MODEL=sphereface \
+  -e MODEL=\${PROJECT_NAME} \
   -e ATTACK_METHOD=pgd \
   -e EPSILON=0.031 \
-  -e STEP_SIZE=0.008 \
-  -e MAX_ITERATIONS=10 \
-  -e DEVICE=0 \
-  ${IMAGE_NAME}
+  \${IMAGE_NAME}
 EOFSCRIPT
 
-# 5. C&W Attack
+# 10. C&W Attack
 echo ""
-echo "5. C&W Attack"
+echo "10. C&W Attack"
 echo "----------------------------------------"
-cat << 'EOFSCRIPT'
+cat << EOFSCRIPT
 docker run --rm --gpus all \
-  -v ${INPUT_PATH}:/project/input:ro \
-  -v ${OUTPUT_PATH}:/project/output:rw \
+  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${OUTPUT_PATH}:/project/output:rw \
   -e PROCESS=adv \
-  -e MODEL=sphereface \
+  -e MODEL=\${PROJECT_NAME} \
   -e ATTACK_METHOD=cw \
   -e MAX_ITERATIONS=100 \
-  -e DEVICE=0 \
-  ${IMAGE_NAME}
+  \${IMAGE_NAME}
 EOFSCRIPT
 
-# 6. DeepFool Attack
+# 11. DeepFool Attack
 echo ""
-echo "6. DeepFool Attack"
+echo "11. DeepFool Attack"
 echo "----------------------------------------"
-cat << 'EOFSCRIPT'
+cat << EOFSCRIPT
 docker run --rm --gpus all \
-  -v ${INPUT_PATH}:/project/input:ro \
-  -v ${OUTPUT_PATH}:/project/output:rw \
+  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${OUTPUT_PATH}:/project/output:rw \
   -e PROCESS=adv \
-  -e MODEL=sphereface \
+  -e MODEL=\${PROJECT_NAME} \
   -e ATTACK_METHOD=deepfool \
   -e MAX_ITERATIONS=50 \
-  -e DEVICE=0 \
-  ${IMAGE_NAME}
+  \${IMAGE_NAME}
 EOFSCRIPT
 
-# 7. HGD Defense
+# 12. HGD Defense
 echo ""
-echo "7. HGD Defense"
+echo "12. HGD Defense"
 echo "----------------------------------------"
-cat << 'EOFSCRIPT'
+cat << EOFSCRIPT
 docker run --rm \
-  -v ${INPUT_PATH}:/project/input:ro \
-  -v ${OUTPUT_PATH}:/project/output:rw \
+  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${OUTPUT_PATH}:/project/output:rw \
   -e PROCESS=defend \
-  -e MODEL=sphereface \
+  -e MODEL=\${PROJECT_NAME} \
   -e DEFEND_METHOD=hgd \
-  ${IMAGE_NAME}
+  \${IMAGE_NAME}
 EOFSCRIPT
 
-# 8. TVM Defense
+# 13. TVM Defense
 echo ""
-echo "8. TVM Defense"
+echo "13. TVM Defense"
 echo "----------------------------------------"
-cat << 'EOFSCRIPT'
+cat << EOFSCRIPT
 docker run --rm \
-  -v ${INPUT_PATH}:/project/input:ro \
-  -v ${OUTPUT_PATH}:/project/output:rw \
+  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${OUTPUT_PATH}:/project/output:rw \
   -e PROCESS=defend \
-  -e MODEL=sphereface \
+  -e MODEL=\${PROJECT_NAME} \
   -e DEFEND_METHOD=tvm \
-  ${IMAGE_NAME}
+  \${IMAGE_NAME}
 EOFSCRIPT
 
-# 9. Liveness Detection Defense
+# 14. Liveness Detection Defense
 echo ""
-echo "9. Liveness Detection Defense"
+echo "14. Liveness Detection Defense"
 echo "----------------------------------------"
-cat << 'EOFSCRIPT'
+cat << EOFSCRIPT
 docker run --rm \
-  -v ${INPUT_PATH}:/project/input:ro \
-  -v ${OUTPUT_PATH}:/project/output:rw \
+  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${OUTPUT_PATH}:/project/output:rw \
   -e PROCESS=defend \
-  -e MODEL=sphereface \
+  -e MODEL=\${PROJECT_NAME} \
   -e DEFEND_METHOD=livenessdetection \
-  ${IMAGE_NAME}
+  \${IMAGE_NAME}
 EOFSCRIPT
 
-# 10. Feature Space Purification Defense
+# 15. Feature Space Purification Defense
 echo ""
-echo "10. Feature Space Purification Defense"
+echo "15. Feature Space Purification Defense"
 echo "----------------------------------------"
-cat << 'EOFSCRIPT'
+cat << EOFSCRIPT
 docker run --rm \
-  -v ${INPUT_PATH}:/project/input:ro \
-  -v ${OUTPUT_PATH}:/project/output:rw \
+  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${OUTPUT_PATH}:/project/output:rw \
   -e PROCESS=defend \
-  -e MODEL=sphereface \
+  -e MODEL=\${PROJECT_NAME} \
   -e DEFEND_METHOD=featurespacepurification \
-  ${IMAGE_NAME}
+  \${IMAGE_NAME}
 EOFSCRIPT
 
-# 11. Ensemble Defense
+# 16. Ensemble Defense
 echo ""
-echo "11. Ensemble Defense"
+echo "16. Ensemble Defense"
 echo "----------------------------------------"
-cat << 'EOFSCRIPT'
+cat << EOFSCRIPT
 docker run --rm \
-  -v ${INPUT_PATH}:/project/input:ro \
-  -v ${OUTPUT_PATH}:/project/output:rw \
+  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${OUTPUT_PATH}:/project/output:rw \
   -e PROCESS=defend \
-  -e MODEL=sphereface \
+  -e MODEL=\${PROJECT_NAME} \
   -e DEFEND_METHOD=ensembledefense \
-  ${IMAGE_NAME}
+  \${IMAGE_NAME}
 EOFSCRIPT
 
 echo ""

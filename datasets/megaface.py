@@ -14,7 +14,7 @@ class MegaFaceDataset(FaceDataset):
         data_dir = os.path.join(self.root_dir, 'megaface', 'FlickrFinal2')
         
         if not os.path.exists(data_dir):
-            print(f"Warning: MegaFace data directory not found: {data_dir}")
+            # print(f"Warning: MegaFace data directory not found: {data_dir}")
             return
         
         # Get all images recursively

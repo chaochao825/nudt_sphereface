@@ -14,7 +14,7 @@ class LFWDataset(FaceDataset):
         data_dir = os.path.join(self.root_dir, 'lfw', 'lfw')
         
         if not os.path.exists(data_dir):
-            print(f"Warning: LFW data directory not found: {data_dir}")
+            # print(f"Warning: LFW data directory not found: {data_dir}")
             return
         
         # Get all person directories

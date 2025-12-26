@@ -14,7 +14,7 @@ class CelebADataset(FaceDataset):
         data_dir = os.path.join(self.root_dir, 'celeba', 'img_align_celeba')
         
         if not os.path.exists(data_dir):
-            print(f"Warning: CelebA data directory not found: {data_dir}")
+            # print(f"Warning: CelebA data directory not found: {data_dir}")
             return
         
         # Get all images

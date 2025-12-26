@@ -62,8 +62,13 @@ def sse_print(event: str, data: dict, progress: int = None, message: str = None,
     
     json_str = json.dumps(response, ensure_ascii=False, default=lambda obj: obj.item() if isinstance(obj, np.generic) else obj)
     message_str = f"data: {json_str}\n\n"
-    print(message_str, flush=True)
+    sys.stdout.write(message_str)
+    sys.stdout.flush()
     return message_str
+
+def sse_heartbeat(progress, message, callback_params=None):
+    """Send a progress heartbeat to keep the connection alive and UI refreshed"""
+    sse_print("progress_update", {}, progress=progress, message=message, callback_params=callback_params)
 
 def sse_input_path_validated(args):
     try:

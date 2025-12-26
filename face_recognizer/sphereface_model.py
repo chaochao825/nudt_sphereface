@@ -25,7 +25,8 @@ class SphereFaceModel(nn.Module):
             try:
                 self.load_state_dict(torch.load(pretrained_path))
             except:
-                print(f"Warning: Could not load pretrained weights from {pretrained_path}")
+                pass
+                # print(f"Warning: Could not load pretrained weights from {pretrained_path}")
     
     def forward(self, x):
         x = self.backbone(x)

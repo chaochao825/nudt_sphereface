@@ -14,7 +14,7 @@ class WebFaceDataset(FaceDataset):
         data_dir = os.path.join(self.root_dir, 'webface', 'CASIA-WebFace')
         
         if not os.path.exists(data_dir):
-            print(f"Warning: WebFace data directory not found: {data_dir}")
+            # print(f"Warning: WebFace data directory not found: {data_dir}")
             return
         
         # Get all person directories
