@@ -9,65 +9,48 @@ from datetime import datetime
 def sse_print(event: str, data: dict, progress: int = None, message: str = None, log: str = None, 
               callback_params: dict = None, details: dict = None) -> str:
     """
-    SSE print with standardized format matching face_json specification
-    
-    Args:
-        event: Event name
-        data: Legacy data dict (for backward compatibility)
-        progress: Progress percentage (1-100)
-        message: Human-readable message (preferably in Chinese)
-        log: Log message with progress indicator
-        callback_params: Callback parameters dict (task_run_id, method_type, etc.)
-        details: Additional details dict
+    SSE print with strict format:
+    event: event_name
+    data: {"progress": ..., "message": ..., "log": ..., "callback_params": ..., "details": ...}
     """
-    # Build standard SSE response format
-    response = {
-        "resp_code": 0,
-        "resp_msg": "操作成功",
-        "time_stamp": datetime.now().strftime("%Y/%m/%d-%H:%M:%S:%f")[:-3],
-        "data": {
-            "event": event
-        }
-    }
+    # 1. Prepare data object (excluding redundant fields)
+    data_to_send = {}
     
-    # Add callback_params if provided (important for face_json format)
     if callback_params:
-        response["data"]["callback_params"] = callback_params
+        data_to_send["callback_params"] = callback_params
     
-    # Add progress if provided
     if progress is not None:
-        response["data"]["progress"] = progress
+        data_to_send["progress"] = progress
     
-    # Add message if provided
     if message:
-        response["data"]["message"] = message
+        data_to_send["message"] = message
     
-    # Add log if provided
     if log:
-        response["data"]["log"] = log
+        data_to_send["log"] = log
     elif progress is not None and message:
-        # Auto-generate log from progress and message
-        response["data"]["log"] = f"[{progress}%] {message}\n"
+        data_to_send["log"] = f"[{progress}%] {message}\n"
     
-    # Add details
     if details:
-        response["data"]["details"] = details
+        data_to_send["details"] = details
     elif data and event not in ["input_path_validated", "output_path_validated", 
                                   "input_data_validated", "input_model_validated"]:
-        # For backward compatibility, use data as details
-        response["data"]["details"] = data
+        data_to_send["details"] = data
     else:
-        # For validation events, merge data into response data
-        response["data"].update(data)
+        # Merge data for validation events if any
+        if data:
+            data_to_send.update(data)
     
-    json_str = json.dumps(response, ensure_ascii=False, default=lambda obj: obj.item() if isinstance(obj, np.generic) else obj)
-    message_str = f"data: {json_str}\n\n"
-    sys.stdout.write(message_str)
+    # 2. Serialize to JSON
+    json_str = json.dumps(data_to_send, ensure_ascii=False, default=lambda obj: obj.item() if isinstance(obj, np.generic) else obj)
+    
+    # 3. Print in strict multi-line SSE format
+    sys.stdout.write(f"event: {event}\n")
+    sys.stdout.write(f"data: {json_str}\n\n")
     sys.stdout.flush()
-    return message_str
+    
+    return f"event: {event}\ndata: {json_str}\n\n"
 
 def sse_heartbeat(progress, message, callback_params=None):
-    """Send a progress heartbeat to keep the connection alive and UI refreshed"""
     sse_print("progress_update", {}, progress=progress, message=message, callback_params=callback_params)
 
 def sse_input_path_validated(args):
@@ -123,7 +106,7 @@ def sse_output_path_validated(args):
         sse_print("output_path_validated", {"status": "failure", "message": f"{e}"})
 
 def sse_adv_samples_gen_validated(adv_image_name, current, total):
-    progress_pct = int(25 + (current / total) * 60)  # 25-85% range for sample generation
+    progress_pct = int(25 + (current / total) * 60)
     sse_print("adv_samples_gen_validated", {
         "status": "success",
         "message": f"对抗样本已生成: {os.path.basename(adv_image_name)}",
@@ -133,7 +116,7 @@ def sse_adv_samples_gen_validated(adv_image_name, current, total):
     }, progress=progress_pct, message=f"生成对抗样本 ({current}/{total})")
 
 def sse_clean_samples_gen_validated(clean_image_name, current, total):
-    progress_pct = int(25 + (current / total) * 60)  # 25-85% range for sample generation
+    progress_pct = int(25 + (current / total) * 60)
     sse_print("clean_samples_gen_validated", {
         "status": "success",
         "message": f"防御样本已生成: {os.path.basename(clean_image_name)}",
@@ -154,9 +137,20 @@ def sse_error(message, event_name="error"):
     sse_print(event_name, {"status": "failure", "message": message})
 
 def save_json_results(results: dict, output_path: str, filename: str = "results.json"):
-    """Save results to JSON file"""
     os.makedirs(output_path, exist_ok=True)
     json_path = os.path.join(output_path, filename)
     with open(json_path, 'w', encoding='utf-8') as f:
         json.dump(results, f, ensure_ascii=False, indent=2, default=lambda obj: obj.item() if isinstance(obj, np.generic) else float(obj) if isinstance(obj, (np.floating, np.integer)) else obj)
     return json_path
+
+# Compatibility for faster_rcnn/ssd
+def sse_final_result(results: dict, event_name="final_result"):
+    sse_print(event_name, {}, progress=100, 
+             message=results.get('message', '操作成功'),
+             details=results)
+
+def sse_class_number_validation(expected, got):
+    sse_print("class_number_validated", {
+        "status": "failure",
+        "message": f"expect CLASS_NUMBER {expected} but got {got}"
+    })
