@@ -22,9 +22,11 @@ cat << EOFSCRIPT
 docker run --rm \
   -v \${INPUT_PATH}:/project/input/data:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
-  -e PROCESS=dataset_sampling \
-  -e DATA=\${DATA_NAME} \
-  -e SAMPLE_COUNT=100 \
+  -e INPUT_PATH=/project/input \
+  -e OUTPUT_PATH=/project/output \
+  -e process=dataset_sampling \
+  -e data=\${DATA_NAME} \
+  -e sample_count=100 \
   \${IMAGE_NAME}
 EOFSCRIPT
 
@@ -36,11 +38,13 @@ cat << EOFSCRIPT
 docker run --rm --gpus all \
   -v \${INPUT_PATH}:/project/input/data:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
-  -e PROCESS=train \
-  -e MODEL=\${PROJECT_NAME} \
-  -e DATA=\${DATA_NAME} \
-  -e EPOCHS=30 \
-  -e DEVICE=\${DEVICE} \
+  -e INPUT_PATH=/project/input \
+  -e OUTPUT_PATH=/project/output \
+  -e process=train \
+  -e model=\${PROJECT_NAME} \
+  -e data=\${DATA_NAME} \
+  -e epochs=30 \
+  -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
 
@@ -53,11 +57,13 @@ cat << EOFSCRIPT
 docker run --rm --gpus all \
   -v \${INPUT_PATH}:/project/input/data:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
-  -e PROCESS=inference_1_1 \
-  -e MODEL=\${PROJECT_NAME} \
-  -e DATA=\${DATA_NAME} \
-  -e THRESHOLD=0.55 \
-  -e DEVICE=\${DEVICE} \
+  -e INPUT_PATH=/project/input \
+  -e OUTPUT_PATH=/project/output \
+  -e process=inference_1_1 \
+  -e model=\${PROJECT_NAME} \
+  -e data=\${DATA_NAME} \
+  -e threshold=0.55 \
+  -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
 
@@ -69,10 +75,12 @@ cat << EOFSCRIPT
 docker run --rm --gpus all \
   -v \${INPUT_PATH}:/project/input/data:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
-  -e PROCESS=inference_1_n \
-  -e MODEL=\${PROJECT_NAME} \
-  -e DATA=\${DATA_NAME} \
-  -e DEVICE=\${DEVICE} \
+  -e INPUT_PATH=/project/input \
+  -e OUTPUT_PATH=/project/output \
+  -e process=inference_1_n \
+  -e model=\${PROJECT_NAME} \
+  -e data=\${DATA_NAME} \
+  -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
 
@@ -84,13 +92,15 @@ cat << EOFSCRIPT
 docker run --rm --gpus all \
   -v \${INPUT_PATH}:/project/input/data:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
-  -e PROCESS=attack_defense_eval \
-  -e MODEL=\${PROJECT_NAME} \
-  -e DATA=\${DATA_NAME} \
-  -e ATTACK_METHOD=bim \
-  -e DEFEND_METHOD=hgd \
-  -e EPSILON=0.031 \
-  -e DEVICE=\${DEVICE} \
+  -e INPUT_PATH=/project/input \
+  -e OUTPUT_PATH=/project/output \
+  -e process=attack_defense_eval \
+  -e model=\${PROJECT_NAME} \
+  -e data=\${DATA_NAME} \
+  -e attack_method=bim \
+  -e defend_method=hgd \
+  -e epsilon=0.031 \
+  -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
 
@@ -100,13 +110,15 @@ echo "6. BIM Attack (ADV)"
 echo "----------------------------------------"
 cat << EOFSCRIPT
 docker run --rm --gpus all \
-  -v \${INPUT_PATH}:/project/input/data:ro \
+  -v \${INPUT_PATH}:/project/input:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
-  -e PROCESS=adv \
-  -e MODEL=\${PROJECT_NAME} \
-  -e ATTACK_METHOD=bim \
-  -e EPSILON=0.031 \
-  -e DEVICE=\${DEVICE} \
+  -e INPUT_PATH=/project/input \
+  -e OUTPUT_PATH=/project/output \
+  -e process=adv \
+  -e model=\${PROJECT_NAME} \
+  -e attack_method=bim \
+  -e epsilon=0.031 \
+  -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
 
@@ -116,13 +128,15 @@ echo "7. DIM Attack"
 echo "----------------------------------------"
 cat << EOFSCRIPT
 docker run --rm --gpus all \
-  -v \${INPUT_PATH}:/project/input/data:ro \
+  -v \${INPUT_PATH}:/project/input:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
-  -e PROCESS=adv \
-  -e MODEL=\${PROJECT_NAME} \
-  -e ATTACK_METHOD=dim \
-  -e EPSILON=0.031 \
-  -e DEVICE=\${DEVICE} \
+  -e INPUT_PATH=/project/input \
+  -e OUTPUT_PATH=/project/output \
+  -e process=adv \
+  -e model=\${PROJECT_NAME} \
+  -e attack_method=dim \
+  -e epsilon=0.031 \
+  -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
 
@@ -132,13 +146,15 @@ echo "8. TIM Attack"
 echo "----------------------------------------"
 cat << EOFSCRIPT
 docker run --rm --gpus all \
-  -v \${INPUT_PATH}:/project/input/data:ro \
+  -v \${INPUT_PATH}:/project/input:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
-  -e PROCESS=adv \
-  -e MODEL=\${PROJECT_NAME} \
-  -e ATTACK_METHOD=tim \
-  -e EPSILON=0.031 \
-  -e DEVICE=\${DEVICE} \
+  -e INPUT_PATH=/project/input \
+  -e OUTPUT_PATH=/project/output \
+  -e process=adv \
+  -e model=\${PROJECT_NAME} \
+  -e attack_method=tim \
+  -e epsilon=0.031 \
+  -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
 
@@ -148,13 +164,15 @@ echo "9. PGD Attack"
 echo "----------------------------------------"
 cat << EOFSCRIPT
 docker run --rm --gpus all \
-  -v \${INPUT_PATH}:/project/input/data:ro \
+  -v \${INPUT_PATH}:/project/input:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
-  -e PROCESS=adv \
-  -e MODEL=\${PROJECT_NAME} \
-  -e ATTACK_METHOD=pgd \
-  -e EPSILON=0.031 \
-  -e DEVICE=\${DEVICE} \
+  -e INPUT_PATH=/project/input \
+  -e OUTPUT_PATH=/project/output \
+  -e process=adv \
+  -e model=\${PROJECT_NAME} \
+  -e attack_method=pgd \
+  -e epsilon=0.031 \
+  -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
 
@@ -164,13 +182,15 @@ echo "10. C&W Attack"
 echo "----------------------------------------"
 cat << EOFSCRIPT
 docker run --rm --gpus all \
-  -v \${INPUT_PATH}:/project/input/data:ro \
+  -v \${INPUT_PATH}:/project/input:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
-  -e PROCESS=adv \
-  -e MODEL=\${PROJECT_NAME} \
-  -e ATTACK_METHOD=cw \
-  -e MAX_ITERATIONS=100 \
-  -e DEVICE=\${DEVICE} \
+  -e INPUT_PATH=/project/input \
+  -e OUTPUT_PATH=/project/output \
+  -e process=adv \
+  -e model=\${PROJECT_NAME} \
+  -e attack_method=cw \
+  -e max_iterations=100 \
+  -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
 
@@ -180,13 +200,15 @@ echo "11. DeepFool Attack"
 echo "----------------------------------------"
 cat << EOFSCRIPT
 docker run --rm --gpus all \
-  -v \${INPUT_PATH}:/project/input/data:ro \
+  -v \${INPUT_PATH}:/project/input:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
-  -e PROCESS=adv \
-  -e MODEL=\${PROJECT_NAME} \
-  -e ATTACK_METHOD=deepfool \
-  -e MAX_ITERATIONS=50 \
-  -e DEVICE=\${DEVICE} \
+  -e INPUT_PATH=/project/input \
+  -e OUTPUT_PATH=/project/output \
+  -e process=adv \
+  -e model=\${PROJECT_NAME} \
+  -e attack_method=deepfool \
+  -e max_iterations=50 \
+  -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
 
@@ -196,12 +218,14 @@ echo "12. HGD Defense"
 echo "----------------------------------------"
 cat << EOFSCRIPT
 docker run --rm \
-  -v \${INPUT_PATH}:/project/input/data:ro \
+  -v \${INPUT_PATH}:/project/input:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
-  -e PROCESS=defend \
-  -e MODEL=\${PROJECT_NAME} \
-  -e DEFEND_METHOD=hgd \
-  -e DEVICE=\${DEVICE} \
+  -e INPUT_PATH=/project/input \
+  -e OUTPUT_PATH=/project/output \
+  -e process=defend \
+  -e model=\${PROJECT_NAME} \
+  -e defend_method=hgd \
+  -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
 
@@ -211,12 +235,14 @@ echo "13. TVM Defense"
 echo "----------------------------------------"
 cat << EOFSCRIPT
 docker run --rm \
-  -v \${INPUT_PATH}:/project/input/data:ro \
+  -v \${INPUT_PATH}:/project/input:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
-  -e PROCESS=defend \
-  -e MODEL=\${PROJECT_NAME} \
-  -e DEFEND_METHOD=tvm \
-  -e DEVICE=\${DEVICE} \
+  -e INPUT_PATH=/project/input \
+  -e OUTPUT_PATH=/project/output \
+  -e process=defend \
+  -e model=\${PROJECT_NAME} \
+  -e defend_method=tvm \
+  -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
 
@@ -226,12 +252,14 @@ echo "14. Liveness Detection Defense"
 echo "----------------------------------------"
 cat << EOFSCRIPT
 docker run --rm \
-  -v \${INPUT_PATH}:/project/input/data:ro \
+  -v \${INPUT_PATH}:/project/input:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
-  -e PROCESS=defend \
-  -e MODEL=\${PROJECT_NAME} \
-  -e DEFEND_METHOD=livenessdetection \
-  -e DEVICE=\${DEVICE} \
+  -e INPUT_PATH=/project/input \
+  -e OUTPUT_PATH=/project/output \
+  -e process=defend \
+  -e model=\${PROJECT_NAME} \
+  -e defend_method=livenessdetection \
+  -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
 
@@ -241,12 +269,14 @@ echo "15. Feature Space Purification Defense"
 echo "----------------------------------------"
 cat << EOFSCRIPT
 docker run --rm \
-  -v \${INPUT_PATH}:/project/input/data:ro \
+  -v \${INPUT_PATH}:/project/input:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
-  -e PROCESS=defend \
-  -e MODEL=\${PROJECT_NAME} \
-  -e DEFEND_METHOD=featurespacepurification \
-  -e DEVICE=\${DEVICE} \
+  -e INPUT_PATH=/project/input \
+  -e OUTPUT_PATH=/project/output \
+  -e process=defend \
+  -e model=\${PROJECT_NAME} \
+  -e defend_method=featurespacepurification \
+  -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
 
@@ -256,12 +286,14 @@ echo "16. Ensemble Defense"
 echo "----------------------------------------"
 cat << EOFSCRIPT
 docker run --rm \
-  -v \${INPUT_PATH}:/project/input/data:ro \
+  -v \${INPUT_PATH}:/project/input:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
-  -e PROCESS=defend \
-  -e MODEL=\${PROJECT_NAME} \
-  -e DEFEND_METHOD=ensembledefense \
-  -e DEVICE=\${DEVICE} \
+  -e INPUT_PATH=/project/input \
+  -e OUTPUT_PATH=/project/output \
+  -e process=defend \
+  -e model=\${PROJECT_NAME} \
+  -e defend_method=ensembledefense \
+  -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
 

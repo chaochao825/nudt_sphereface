@@ -38,7 +38,12 @@ def parse_args():
     args_dict = vars(args)
     args_dict_environ = {}
     for key, value in args_dict.items():
-        args_dict_environ[key] = type_switch(os.getenv(key.upper(), value), value)
+        # Keep INPUT_PATH and OUTPUT_PATH as uppercase, others as lowercase
+        if key in ['input_path', 'output_path']:
+            env_val = os.getenv(key.upper(), value)
+        else:
+            env_val = os.getenv(key.lower(), value)
+        args_dict_environ[key] = type_switch(env_val, value)
     args_easydict = EasyDict(args_dict_environ)
     return args_easydict
 
