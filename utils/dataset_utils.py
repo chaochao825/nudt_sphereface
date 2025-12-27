@@ -12,7 +12,7 @@ def extract_archive(archive_path, extract_dir):
     if archive_path.endswith('.zip'):
         with zipfile.ZipFile(archive_path, 'r') as zip_ref:
             zip_ref.extractall(extract_dir)
-    elif archive_path.endswith('.tar') or archive_path.endswith('.tar.gz'):
+    elif archive_path.endswith('.tar') or archive_path.endswith('.tar.gz') or archive_path.endswith('.tgz'):
         with tarfile.open(archive_path, 'r:*') as tar_ref:
             tar_ref.extractall(extract_dir)
     return extract_dir
@@ -21,7 +21,11 @@ def get_images_from_dir(directory, limit=100):
     """Recursively find images in directory up to limit"""
     extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.pgm')
     image_paths = []
+    if not os.path.exists(directory):
+        return []
     for root, dirs, files in os.walk(directory):
+        files.sort()
+        dirs.sort()
         for file in files:
             if file.lower().endswith(extensions):
                 full_path = os.path.join(root, file)
@@ -31,106 +35,66 @@ def get_images_from_dir(directory, limit=100):
     return image_paths
 
 def prepare_dataset(data_path, limit=100, dataset_name=None):
-    """Prepare dataset: handle archives, directories, and robustly search for specific datasets"""
+    """Deep search for images starting from data_path"""
     data_path = Path(data_path).absolute()
     
-    # 1. Search for datasets in common locations
-    search_roots = [
-        data_path, 
-        data_path.parent, 
-        Path("/project/input/data"),
-        Path("/data6/user23215430/nudt/input/data")
-    ]
-    
-    found_path = None
-    
-    # Priority search for the specific dataset name if provided
+    # List of possible names to look for if dataset_name is provided
+    # Standardizing names like 'web_face' to 'webface' etc.
+    names_to_search = []
     if dataset_name:
+        clean_name = dataset_name.lower().replace("_", "").replace("-", "")
+        names_to_search.append(clean_name)
+        names_to_search.append(dataset_name.lower())
+
+    # 1. Search for a folder matching names_to_search recursively from search roots
+    search_roots = [data_path, data_path.parent, Path("/project/input/data")]
+    
+    found_dir = None
+    if names_to_search:
         for root in search_roots:
             if not root.exists() or not root.is_dir(): continue
-            # Check for exact or fuzzy match in subdirectories
-            for item in root.iterdir():
-                if item.is_dir() and (dataset_name.lower() in item.name.lower()):
-                    found_path = item
-                    break
-            if found_path: break
-            
-    # If not found yet, just try to find ANY of the known datasets
-    if not found_path:
-        known_names = ["lfw", "webface", "web_face", "yaleb", "celeba", "megaface", "vggface2"]
-        for root in search_roots:
-            if not root.exists() or not root.is_dir(): continue
-            for item in root.iterdir():
-                if item.is_dir() and any(k in item.name.lower() for k in known_names):
-                    found_path = item
-                    break
-            if found_path: break
+            for sub in root.rglob('*'):
+                if sub.is_dir():
+                    sub_clean = sub.name.lower().replace("_", "").replace("-", "")
+                    if any(n in sub_clean for n in names_to_search):
+                        # Found a potential match, check if it has images
+                        if get_images_from_dir(str(sub), limit=1):
+                            found_dir = sub; break
+            if found_dir: break
 
-    # Use the found path if available, else stick with data_path
-    final_path = found_path if found_path else data_path
-    
-    # 2. Check for archives in the final path and extract them
-    if final_path.is_dir():
-        for arch_ext in ['*.zip', '*.tar', '*.tar.gz', '*.tgz']:
-            for arch in final_path.glob(arch_ext):
-                ext_dir = final_path / (arch.stem + "_extracted")
-                if not ext_dir.exists():
-                    os.makedirs(ext_dir, exist_ok=True)
-                    try:
-                        extract_archive(str(arch), str(ext_dir))
-                    except: pass
-    
-    # 3. Handle if final_path itself is an archive
-    if final_path.is_file() and final_path.suffix in ['.zip', '.tar', '.gz']:
-        ext_dir = final_path.parent / (final_path.stem + "_extracted")
-        if not ext_dir.exists():
-            os.makedirs(ext_dir, exist_ok=True)
-            try:
-                extract_archive(str(final_path), str(ext_dir))
-            except: pass
-        final_path = ext_dir
-
-    # 4. Find images recursively up to limit
+    # 2. If no specific dir found, just search globally from data_path for ANY images
+    final_path = found_dir if found_dir else data_path
     image_paths = get_images_from_dir(str(final_path), limit=limit)
     
-    # 5. If still no images, look one level deeper in subdirectories
+    # 3. If no images found, search for archives and extract them
+    if not image_paths:
+        archives = list(final_path.glob("**/*.zip")) + list(final_path.glob("**/*.tar*"))
+        for arch in archives:
+            ext_dir = arch.parent / (arch.stem + "_extracted")
+            if not ext_dir.exists():
+                os.makedirs(ext_dir, exist_ok=True)
+                try: extract_archive(str(arch), str(ext_dir))
+                except: continue
+            image_paths.extend(get_images_from_dir(str(ext_dir), limit=limit - len(image_paths)))
+            if len(image_paths) >= limit: break
+
+    # 4. If STILL no images, search ANY directory that contains images
     if not image_paths and final_path.is_dir():
-        for sub in final_path.iterdir():
+        for sub in final_path.rglob('*'):
             if sub.is_dir():
-                image_paths.extend(get_images_from_dir(str(sub), limit=limit - len(image_paths)))
-                if len(image_paths) >= limit:
-                    break
-                    
+                found = get_images_from_dir(str(sub), limit=limit - len(image_paths))
+                image_paths.extend(found)
+                if len(image_paths) >= limit: break
+
     return image_paths
 
 def calculate_metrics(orig_img, adv_img):
-    """Calculate PSNR, SSIM, L2 and L-inf norms between two images (numpy arrays, 0-1 range)"""
     mse = np.mean((orig_img - adv_img) ** 2)
-    if mse == 0:
-        psnr = 100.0
-    else:
-        psnr = 20 * np.log10(1.0 / np.sqrt(mse))
-    
-    # Simple SSIM approximation
-    mu1 = orig_img.mean()
-    mu2 = adv_img.mean()
-    sigma1 = orig_img.var()
-    sigma2 = adv_img.var()
-    c1 = (0.01 * 1.0)**2
-    c2 = (0.03 * 1.0)**2
-    ssim = (2 * mu1 * mu2 + c1) * (2 * np.sqrt(sigma1 * sigma2) + c2) / \
-           ((mu1**2 + mu2**2 + c1) * (sigma1 + sigma2 + c2))
-    
-    # Perturbation metrics
+    psnr = 100.0 if mse == 0 else 20 * np.log10(1.0 / np.sqrt(mse))
+    mu1, mu2 = orig_img.mean(), adv_img.mean()
+    sigma1, sigma2 = orig_img.var(), adv_img.var()
+    c1, c2 = 0.0001, 0.0009
+    ssim = (2 * mu1 * mu2 + c1) * (2 * np.sqrt(sigma1 * sigma2) + c2) / ((mu1**2 + mu2**2 + c1) * (sigma1 + sigma2 + c2))
     diff = orig_img - adv_img
-    l2_norm = np.linalg.norm(diff)
-    linf_norm = np.max(np.abs(diff))
-           
-    return {
-        "psnr": float(psnr), 
-        "ssim": float(ssim),
-        "l2_norm": float(l2_norm),
-        "linf_norm": float(linf_norm),
-        "combined_perturbation": float(l2_norm * 0.7 + linf_norm * 0.3)
-    }
-
+    l2, linf = np.linalg.norm(diff), np.max(np.abs(diff))
+    return {"psnr": float(psnr), "ssim": float(ssim), "l2_norm": float(l2), "linf_norm": float(linf), "combined_perturbation": float(l2 * 0.7 + linf * 0.3)}

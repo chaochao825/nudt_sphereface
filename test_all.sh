@@ -52,9 +52,9 @@ function run_task() {
     docker run --rm \
       -v "${TEST_INPUT}:/project/input/data:ro" \
       -v "${TEST_OUTPUT}/${process_type}:/project/output:rw" \
-      -e PROCESS="${process_type}" \
-      -e DEVICE=-1 \
-      -e DATA="lfw" \
+      -e process="${process_type}" \
+      -e device=-1 \
+      -e data="lfw" \
       ${extra_env} \
       "${IMAGE_NAME}"
 }
@@ -62,10 +62,10 @@ function run_task() {
 echo ">>> [4/5] Running automated tests..."
 
 # 1. Dataset Sampling
-run_task "数据集采样" "dataset_sampling" "-e SAMPLE_COUNT=5"
+run_task "数据集采样" "dataset_sampling" "-e sample_count=5"
 
 # 2. Training (Simulated)
-run_task "模型训练" "train" "-e EPOCHS=1"
+run_task "模型训练" "train" "-e epochs=1"
 
 # 3. Face Verification (1:1)
 run_task "人脸验证" "inference_1_1" ""
@@ -74,22 +74,22 @@ run_task "人脸验证" "inference_1_1" ""
 run_task "人脸识别验证" "inference_1_n" ""
 
 # 5. Attack (ADV) - BIM
-run_task "对抗样本生成 (BIM)" "adv" "-e ATTACK_METHOD=bim"
+run_task "对抗样本生成 (BIM)" "adv" "-e attack_method=bim"
 
 # 6. Attack (ADV) - PGD
-run_task "对抗样本生成 (PGD)" "adv" "-e ATTACK_METHOD=pgd"
+run_task "对抗样本生成 (PGD)" "adv" "-e attack_method=pgd"
 
 # 7. Attack (ADV) - DeepFool
-run_task "对抗样本生成 (DeepFool)" "adv" "-e ATTACK_METHOD=deepfool"
+run_task "对抗样本生成 (DeepFool)" "adv" "-e attack_method=deepfool"
 
 # 8. Defense - HGD
-run_task "防御处理 (HGD)" "defend" "-e DEFEND_METHOD=hgd"
+run_task "防御处理 (HGD)" "defend" "-e defend_method=hgd"
 
 # 9. Defense - TVM
-run_task "防御处理 (TVM)" "defend" "-e DEFEND_METHOD=tvm"
+run_task "防御处理 (TVM)" "defend" "-e defend_method=tvm"
 
 # 10. Evaluation (Attack & Defense)
-run_task "全流程安全性评估 (BIM+HGD)" "attack_defense_eval" "-e ATTACK_METHOD=bim -e DEFEND_METHOD=hgd"
+run_task "全流程安全性评估 (BIM+HGD)" "attack_defense_eval" "-e attack_method=bim -e defend_method=hgd"
 
 echo ""
 echo ">>> [5/5] Tests completed successfully!"
