@@ -23,10 +23,15 @@ mkdir -p test_data/person2
 # Try to find images in standard locations
 LFW_DIR="/data6/user23215430/nudt/input/data/LFW/lfw"
 if [ -d "$LFW_DIR" ]; then
-    # Copy images for two different people
-    find "$LFW_DIR" -maxdepth 2 -name "*.jpg" | head -n 20 > file_list.txt
-    cp $(head -n 10 file_list.txt) test_data/person1/
-    cp $(tail -n 10 file_list.txt) test_data/person2/
+    # Pick two different people for 1:1 verification
+    people_dirs=($(ls -d "$LFW_DIR"/*/ | shuf -n 2))
+    cp $(ls "${people_dirs[0]}"*.jpg | head -n 1) test_data/person1/
+    cp $(ls "${people_dirs[1]}"*.jpg | head -n 1) test_data/person2/
+    echo "Prepared person1 from ${people_dirs[0]} and person2 from ${people_dirs[1]}"
+else
+    # Fallback dummy data if LFW not found
+    touch test_data/person1/dummy1.jpg
+    touch test_data/person2/dummy2.jpg
 fi
 
 echo ">>> [3/5] Building Docker image: ${IMAGE_NAME}..."
@@ -49,6 +54,7 @@ function run_task() {
       -v "${TEST_OUTPUT}/${process_type}:/project/output:rw" \
       -e PROCESS="${process_type}" \
       -e DEVICE=-1 \
+      -e DATA="lfw" \
       ${extra_env} \
       "${IMAGE_NAME}"
 }

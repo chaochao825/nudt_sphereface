@@ -30,59 +30,72 @@ def get_images_from_dir(directory, limit=100):
                     return image_paths
     return image_paths
 
-def prepare_dataset(data_path, limit=100):
-    """Prepare dataset: handle archives, directories, and limit images"""
-    # Convert to absolute path if needed
+def prepare_dataset(data_path, limit=100, dataset_name=None):
+    """Prepare dataset: handle archives, directories, and robustly search for specific datasets"""
     data_path = Path(data_path).absolute()
     
-    # Check if data_path exists
-    if not data_path.exists():
-        # Try relative to project root
-        proj_root = Path(__file__).parent.parent
-        data_path = (proj_root / data_path).absolute()
-        
-    if not data_path.exists():
-        # Try to find it in common locations
-        possible_paths = [
-            Path("/data6/user23215430/nudt/input/data/LFW/lfw"),
-            Path("/data6/user23215430/nudt/input/data/LFW"),
-            Path("/data6/user23215430/nudt/input/data/web_face"),
-            Path("/data6/user23215430/nudt/input/data/VGGFace2"),
-            Path("/project/input/data"),
-        ]
-        for p in possible_paths:
-            if p.exists():
-                # If we are looking for a specific dataset, check if it matches
-                if any(name.lower() in p.name.lower() for name in ["lfw", "webface", "vggface2"]):
-                    data_path = p
+    # 1. Search for datasets in common locations
+    search_roots = [
+        data_path, 
+        data_path.parent, 
+        Path("/project/input/data"),
+        Path("/data6/user23215430/nudt/input/data")
+    ]
+    
+    found_path = None
+    
+    # Priority search for the specific dataset name if provided
+    if dataset_name:
+        for root in search_roots:
+            if not root.exists() or not root.is_dir(): continue
+            # Check for exact or fuzzy match in subdirectories
+            for item in root.iterdir():
+                if item.is_dir() and (dataset_name.lower() in item.name.lower()):
+                    found_path = item
                     break
-                # Default to the first existing one if no match
-                if not data_path.exists():
-                    data_path = p
+            if found_path: break
+            
+    # If not found yet, just try to find ANY of the known datasets
+    if not found_path:
+        known_names = ["lfw", "webface", "web_face", "yaleb", "celeba", "megaface", "vggface2"]
+        for root in search_roots:
+            if not root.exists() or not root.is_dir(): continue
+            for item in root.iterdir():
+                if item.is_dir() and any(k in item.name.lower() for k in known_names):
+                    found_path = item
+                    break
+            if found_path: break
 
-    # Check if there are zip files in the directory and extract them if needed
-    if data_path.is_dir():
-        zip_files = list(data_path.glob("*.zip"))
-        for zf in zip_files:
-            extract_dir = data_path / zf.stem
-            if not extract_dir.exists():
-                os.makedirs(extract_dir, exist_ok=True)
-                extract_archive(str(zf), str(extract_dir))
+    # Use the found path if available, else stick with data_path
+    final_path = found_path if found_path else data_path
     
-    # Check if it's an archive itself
-    if data_path.is_file() and data_path.suffix in ['.zip', '.tar', '.gz']:
-        extract_dir = data_path.parent / (data_path.stem + "_extracted")
-        if not extract_dir.exists():
-            os.makedirs(extract_dir, exist_ok=True)
-            extract_archive(str(data_path), str(extract_dir))
-        data_path = extract_dir
+    # 2. Check for archives in the final path and extract them
+    if final_path.is_dir():
+        for arch_ext in ['*.zip', '*.tar', '*.tar.gz', '*.tgz']:
+            for arch in final_path.glob(arch_ext):
+                ext_dir = final_path / (arch.stem + "_extracted")
+                if not ext_dir.exists():
+                    os.makedirs(ext_dir, exist_ok=True)
+                    try:
+                        extract_archive(str(arch), str(ext_dir))
+                    except: pass
+    
+    # 3. Handle if final_path itself is an archive
+    if final_path.is_file() and final_path.suffix in ['.zip', '.tar', '.gz']:
+        ext_dir = final_path.parent / (final_path.stem + "_extracted")
+        if not ext_dir.exists():
+            os.makedirs(ext_dir, exist_ok=True)
+            try:
+                extract_archive(str(final_path), str(ext_dir))
+            except: pass
+        final_path = ext_dir
 
-    # Find images
-    image_paths = get_images_from_dir(str(data_path), limit=limit)
+    # 4. Find images recursively up to limit
+    image_paths = get_images_from_dir(str(final_path), limit=limit)
     
-    # If no images found, check if there's a subfolder with images
-    if not image_paths and data_path.is_dir():
-        for sub in data_path.iterdir():
+    # 5. If still no images, look one level deeper in subdirectories
+    if not image_paths and final_path.is_dir():
+        for sub in final_path.iterdir():
             if sub.is_dir():
                 image_paths.extend(get_images_from_dir(str(sub), limit=limit - len(image_paths)))
                 if len(image_paths) >= limit:
