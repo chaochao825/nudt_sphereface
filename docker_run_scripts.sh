@@ -9,6 +9,7 @@ INPUT_PATH="/path/to/data" # Should contain subfolders like person1, person2 or 
 OUTPUT_PATH="/path/to/output"
 DATA_NAME="lfw" # Options: lfw, webface, yaleb, celeba, megaface, vggface2
 DEVICE="-1" # Use -1 for CPU, 0 for GPU 0
+SELECTED_SAMPLES="10" # Number of samples to process for attack/defense
 
 echo "========================================"
 echo "${PROJECT_NAME^^} Docker Run Scripts"
@@ -100,6 +101,7 @@ docker run --rm --gpus all \
   -e attack_method=bim \
   -e defend_method=hgd \
   -e epsilon=0.031 \
+  -e selected_samples=\${SELECTED_SAMPLES} \
   -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
@@ -110,7 +112,7 @@ echo "6. BIM Attack (ADV)"
 echo "----------------------------------------"
 cat << EOFSCRIPT
 docker run --rm --gpus all \
-  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${INPUT_PATH}:/project/input/data:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
   -e INPUT_PATH=/project/input \
   -e OUTPUT_PATH=/project/output \
@@ -118,6 +120,7 @@ docker run --rm --gpus all \
   -e model=\${PROJECT_NAME} \
   -e attack_method=bim \
   -e epsilon=0.031 \
+  -e selected_samples=\${SELECTED_SAMPLES} \
   -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
@@ -128,7 +131,7 @@ echo "7. DIM Attack"
 echo "----------------------------------------"
 cat << EOFSCRIPT
 docker run --rm --gpus all \
-  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${INPUT_PATH}:/project/input/data:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
   -e INPUT_PATH=/project/input \
   -e OUTPUT_PATH=/project/output \
@@ -136,6 +139,7 @@ docker run --rm --gpus all \
   -e model=\${PROJECT_NAME} \
   -e attack_method=dim \
   -e epsilon=0.031 \
+  -e selected_samples=\${SELECTED_SAMPLES} \
   -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
@@ -146,7 +150,7 @@ echo "8. TIM Attack"
 echo "----------------------------------------"
 cat << EOFSCRIPT
 docker run --rm --gpus all \
-  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${INPUT_PATH}:/project/input/data:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
   -e INPUT_PATH=/project/input \
   -e OUTPUT_PATH=/project/output \
@@ -154,6 +158,7 @@ docker run --rm --gpus all \
   -e model=\${PROJECT_NAME} \
   -e attack_method=tim \
   -e epsilon=0.031 \
+  -e selected_samples=\${SELECTED_SAMPLES} \
   -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
@@ -164,7 +169,7 @@ echo "9. PGD Attack"
 echo "----------------------------------------"
 cat << EOFSCRIPT
 docker run --rm --gpus all \
-  -v \${INPUT_PATH}:/project/input:ro \
+  -v \${INPUT_PATH}:/project/input/data:ro \
   -v \${OUTPUT_PATH}:/project/output:rw \
   -e INPUT_PATH=/project/input \
   -e OUTPUT_PATH=/project/output \
@@ -172,6 +177,7 @@ docker run --rm --gpus all \
   -e model=\${PROJECT_NAME} \
   -e attack_method=pgd \
   -e epsilon=0.031 \
+  -e selected_samples=\${SELECTED_SAMPLES} \
   -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
@@ -190,6 +196,7 @@ docker run --rm --gpus all \
   -e model=\${PROJECT_NAME} \
   -e attack_method=cw \
   -e max_iterations=100 \
+  -e selected_samples=\${SELECTED_SAMPLES} \
   -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
@@ -208,6 +215,7 @@ docker run --rm --gpus all \
   -e model=\${PROJECT_NAME} \
   -e attack_method=deepfool \
   -e max_iterations=50 \
+  -e selected_samples=\${SELECTED_SAMPLES} \
   -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
@@ -225,6 +233,7 @@ docker run --rm \
   -e process=defend \
   -e model=\${PROJECT_NAME} \
   -e defend_method=hgd \
+  -e selected_samples=\${SELECTED_SAMPLES} \
   -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
@@ -242,6 +251,7 @@ docker run --rm \
   -e process=defend \
   -e model=\${PROJECT_NAME} \
   -e defend_method=tvm \
+  -e selected_samples=\${SELECTED_SAMPLES} \
   -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
@@ -259,8 +269,9 @@ docker run --rm \
   -e process=defend \
   -e model=\${PROJECT_NAME} \
   -e defend_method=livenessdetection \
+  -e selected_samples=\${SELECTED_SAMPLES} \
   -e device=\${DEVICE} \
-  \${IMAGE_NAME}
+  \ \${IMAGE_NAME}
 EOFSCRIPT
 
 # 15. Feature Space Purification Defense
@@ -276,6 +287,7 @@ docker run --rm \
   -e process=defend \
   -e model=\${PROJECT_NAME} \
   -e defend_method=featurespacepurification \
+  -e selected_samples=\${SELECTED_SAMPLES} \
   -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT
@@ -293,6 +305,7 @@ docker run --rm \
   -e process=defend \
   -e model=\${PROJECT_NAME} \
   -e defend_method=ensembledefense \
+  -e selected_samples=\${SELECTED_SAMPLES} \
   -e device=\${DEVICE} \
   \${IMAGE_NAME}
 EOFSCRIPT

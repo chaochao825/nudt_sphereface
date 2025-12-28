@@ -74,22 +74,22 @@ run_task "人脸验证" "inference_1_1" ""
 run_task "人脸识别验证" "inference_1_n" ""
 
 # 5. Attack (ADV) - BIM
-run_task "对抗样本生成 (BIM)" "adv" "-e attack_method=bim"
+run_task "对抗样本生成 (BIM)" "adv" "-e attack_method=bim -e selected_samples=2"
 
 # 6. Attack (ADV) - PGD
-run_task "对抗样本生成 (PGD)" "adv" "-e attack_method=pgd"
+run_task "对抗样本生成 (PGD)" "adv" "-e attack_method=pgd -e selected_samples=2"
 
 # 7. Attack (ADV) - DeepFool
-run_task "对抗样本生成 (DeepFool)" "adv" "-e attack_method=deepfool"
+run_task "对抗样本生成 (DeepFool)" "adv" "-e attack_method=deepfool -e selected_samples=2"
 
 # 8. Defense - HGD
-run_task "防御处理 (HGD)" "defend" "-e defend_method=hgd"
+run_task "防御处理 (HGD)" "defend" "-e defend_method=hgd -e selected_samples=2"
 
 # 9. Defense - TVM
-run_task "防御处理 (TVM)" "defend" "-e defend_method=tvm"
+run_task "防御处理 (TVM)" "defend" "-e defend_method=tvm -e selected_samples=2"
 
 # 10. Evaluation (Attack & Defense)
-run_task "全流程安全性评估 (BIM+HGD)" "attack_defense_eval" "-e attack_method=bim -e defend_method=hgd"
+run_task "全流程安全性评估 (BIM+HGD)" "attack_defense_eval" "-e attack_method=bim -e defend_method=hgd -e selected_samples=2"
 
 echo ""
 echo ">>> [5/5] Tests completed successfully!"

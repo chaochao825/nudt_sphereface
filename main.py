@@ -19,6 +19,7 @@ def parse_args():
     parser.add_argument('--num_classes', type=int, default=1000, help='number of classes')
     parser.add_argument('--sample_count', type=int, default=100, help='number of images to sample')
     parser.add_argument('--threshold', type=float, default=0.55, help='confidence threshold for verification')
+    parser.add_argument('--selected_samples', type=int, default=10, help='number of samples to process')
     
     parser.add_argument('--attack_method', type=str, default='bim', help='attack method [bim, dim, tim, pgd, cw, deepfool]')
     parser.add_argument('--defend_method', type=str, default='hgd', help='defend method [hgd, tvm, livenessdetection, featurespacepurification, ensembledefense]')
@@ -98,6 +99,7 @@ def face_cfg(args):
     elif args.process == 'dataset_sampling':
         cfg.mode = 'dataset_sampling'
         cfg.sample_count = args.sample_count
+    cfg.selected_samples = args.selected_samples
     
     cfg_dict = dict(cfg)
     args.cfg_yaml = f'{args.cfg_path}/config.yaml'
