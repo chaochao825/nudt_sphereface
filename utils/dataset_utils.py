@@ -35,58 +35,49 @@ def get_images_from_dir(directory, limit=100):
     return image_paths
 
 def prepare_dataset(data_path, limit=100, dataset_name=None):
-    """Deep search for images starting from data_path"""
-    data_path = Path(data_path).absolute()
-    
-    # List of possible names to look for if dataset_name is provided
-    # Standardizing names like 'web_face' to 'webface' etc.
-    names_to_search = []
-    if dataset_name:
-        clean_name = dataset_name.lower().replace("_", "").replace("-", "")
-        names_to_search.append(clean_name)
-        names_to_search.append(dataset_name.lower())
+    """Robust dataset discovery with fallback to internal gallery"""
+    # 1. Try provided path if it looks valid and exists
+    if data_path:
+        p_path = Path(data_path).absolute()
+        image_paths = get_images_from_dir(str(p_path), limit=limit)
+        if image_paths: return image_paths
 
-    # 1. Search for a folder matching names_to_search recursively from search roots
-    search_roots = [data_path, data_path.parent, Path("/project/input/data")]
+    # 2. Search for common dataset names in common locations
+    search_roots = [
+        Path("/project/input/data"),
+        Path("/data6/user23215430/nudt/input/data")
+    ]
     
-    found_dir = None
-    if names_to_search:
+    # If dataset_name provided (e.g. 'lfw'), search specifically
+    if dataset_name:
         for root in search_roots:
             if not root.exists() or not root.is_dir(): continue
-            for sub in root.rglob('*'):
-                if sub.is_dir():
-                    sub_clean = sub.name.lower().replace("_", "").replace("-", "")
-                    if any(n in sub_clean for n in names_to_search):
-                        # Found a potential match, check if it has images
-                        if get_images_from_dir(str(sub), limit=1):
-                            found_dir = sub; break
-            if found_dir: break
+            for item in root.iterdir():
+                if item.is_dir() and (dataset_name.lower() in item.name.lower()):
+                    image_paths = get_images_from_dir(str(item), limit=limit)
+                    if image_paths: return image_paths
 
-    # 2. If no specific dir found, just search globally from data_path for ANY images
-    final_path = found_dir if found_dir else data_path
-    image_paths = get_images_from_dir(str(final_path), limit=limit)
-    
-    # 3. If no images found, search for archives and extract them
-    if not image_paths:
-        archives = list(final_path.glob("**/*.zip")) + list(final_path.glob("**/*.tar*"))
+    # 3. Aggressive rglob search in project input if no specific dir found
+    project_input = Path("/project/input")
+    if project_input.exists():
+        # Look for archives first and extract them
+        archives = list(project_input.glob("**/*.zip")) + list(project_input.glob("**/*.tar*"))
         for arch in archives:
             ext_dir = arch.parent / (arch.stem + "_extracted")
             if not ext_dir.exists():
                 os.makedirs(ext_dir, exist_ok=True)
                 try: extract_archive(str(arch), str(ext_dir))
                 except: continue
-            image_paths.extend(get_images_from_dir(str(ext_dir), limit=limit - len(image_paths)))
-            if len(image_paths) >= limit: break
+            image_paths = get_images_from_dir(str(ext_dir), limit=limit)
+            if image_paths: return image_paths
 
-    # 4. If STILL no images, search ANY directory that contains images
-    if not image_paths and final_path.is_dir():
-        for sub in final_path.rglob('*'):
-            if sub.is_dir():
-                found = get_images_from_dir(str(sub), limit=limit - len(image_paths))
-                image_paths.extend(found)
-                if len(image_paths) >= limit: break
-
-    return image_paths
+    # 4. FINAL FALLBACK: Use internal default_gallery
+    internal_gallery = Path("/project/default_gallery")
+    if internal_gallery.exists():
+        image_paths = get_images_from_dir(str(internal_gallery), limit=limit)
+        if image_paths: return image_paths
+            
+    return []
 
 def calculate_metrics(orig_img, adv_img):
     mse = np.mean((orig_img - adv_img) ** 2)
