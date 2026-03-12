@@ -1,0 +1,14 @@
+batch: 8
+data: lfw
+data_path: ./input/data
+device: cuda:0
+half: false
+mode: inference_1_1
+model: sphereface
+name: inference_1_1
+num_classes: 1000
+project: sphereface
+save_dir: ./output
+selected_samples: 10
+verbose: true
+workers: 0
