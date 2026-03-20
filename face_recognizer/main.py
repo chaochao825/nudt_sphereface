@@ -43,9 +43,6 @@ def run_attack_only(args, cfg):
     selected_paths = image_paths[:count]
     ori_dir = reset_dir(os.path.join(cfg.save_dir, "ori_images"))
     adv_dir = reset_dir(os.path.join(cfg.save_dir, "adv_images"))
-    def_dir = os.path.join(cfg.save_dir, "def_images")
-    if os.path.exists(def_dir):
-        shutil.rmtree(def_dir)
 
     for index, image_path in enumerate(selected_paths, start=1):
         sample_name = os.path.basename(image_path)
@@ -79,32 +76,31 @@ def run_defend_only(args, cfg):
     callback = {"task_run_id": f"defend_{datetime.now().strftime('%Y%m%d%H%M%S')}", "method_type": "安全性评估"}
     sse_print("attack_defense_eval_start", {}, progress=15.0, message="启动稳健性评估协议", callback_params=callback)
 
-    adv_dir = os.path.join(cfg.data_path, "adv_images")
-    adv_paths = []
-    if os.path.isdir(adv_dir):
-        for name in sorted(os.listdir(adv_dir)):
-            full_path = os.path.join(adv_dir, name)
-            if os.path.isfile(full_path):
-                adv_paths.append(full_path)
-
-    if not adv_paths:
-        sse_error("未找到攻击图片，请先执行 attack 或 adv 流程生成 adv_images")
+    image_paths = discover_images(cfg, limit=max(1, int(getattr(cfg, "selected_samples", 10))))
+    if not image_paths:
+        sse_error("资源检索失败")
         return
 
-    count = min(int(getattr(cfg, "selected_samples", 10)), len(adv_paths))
-    selected_paths = adv_paths[:count]
-    def_dir = reset_dir(os.path.join(cfg.save_dir, "def_images"))
+    count = _selected_count(cfg, image_paths)
+    selected_paths = image_paths[:count]
     adv_dir = reset_dir(os.path.join(cfg.save_dir, "adv_images"))
+    def_dir = reset_dir(os.path.join(cfg.save_dir, "def_images"))
 
     for index, image_path in enumerate(selected_paths, start=1):
         sample_name = os.path.basename(image_path)
         progress = get_progress(15, index, count, 80)
-        adv_image = load_rgb_image(image_path)
+        orig_image = load_rgb_image(image_path)
+        adv_image = apply_attack(orig_image, getattr(args, "attack_method", "bim"), float(getattr(args, "epsilon", 8 / 255)))
+
+        attack_method = str(getattr(args, "attack_method", "bim")).lower()
+        adv_path = os.path.join(adv_dir, f"adv_img_{index - 1}_{attack_method}_{sample_name}")
+        adv_image.save(adv_path)
+
         def_image = apply_defense(adv_image, getattr(args, "defend_method", "hgd"))
         defend_method = str(getattr(args, "defend_method", "hgd")).lower()
         def_path = os.path.join(def_dir, sample_name.replace("adv_img_", f"def_img_{defend_method}_", 1))
         def_image.save(def_path)
-        adv_image.save(os.path.join(adv_dir, sample_name))
+
         progress_data = {
             "status": "success",
             "message": "处理防御样本...",
